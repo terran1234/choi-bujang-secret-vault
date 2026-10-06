@@ -1,44 +1,53 @@
-# BYTE BACK 방어전 · 자료실 (2단계 저장점)
+# BYTE BACK 방어전 · 자료실 (3단계 저장점)
 
 이 저장소는 방어전 시작 틀에서 만든 학생의 자료실입니다. 들어 있는 메모는 모두 가상 자료이고, 실제 개인정보·비밀번호·키는 넣지 않습니다.
 
 ## 단계 기록
 
 - **1단계**: 가상 메모를 공개 `data.json`으로 그대로 내보내 노출 상태를 직접 확인했습니다.
-- **2단계 (현재)**: 메모를 코드 밖 Supabase 테이블 `notes`로 옮겼습니다. 화면은 `api/notes.js` 서버 함수를 통해서만 메모를 읽습니다.
+- **2단계**: 메모를 코드 밖 Supabase 테이블 `notes`로 옮기고 서버 함수로 읽게 했습니다. `/data.json`은 404입니다.
+- **3단계 (현재)**: Supabase Auth 이메일 로그인·로그아웃을 붙이고, 서버가 로그인 증표(토큰)를 직접 검사합니다. 로그인한 사용자가 가상 메모를 추가·수정·삭제할 수 있습니다.
 
 ## 지금 작동하는 기능
 
-1. 첫 화면은 `/api/notes`를 불러 가상 메모 네 건을 카드로 보여 줍니다.
-2. `api/notes.js`는 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`로 DB를 읽습니다. 키는 응답·로그·브라우저 파일에 싣지 않습니다.
-3. 테이블은 RLS를 켰고, 공개 키(anon)와 로그인 사용자(authenticated)에는 읽기 권한을 주지 않았습니다. `owner_id` 칸은 3단계 이후를 위해 미리 두었습니다(외래키 없음).
-4. `/data.json`은 더 이상 만들지 않으므로 404입니다. 빌드는 `/aleph.json`(배포 저장소·커밋·주소)을 계속 만듭니다.
-5. 첫 화면 응답에 `X-Content-Type-Options: nosniff` 헤더를 붙입니다.
+1. 첫 화면에서 이메일·비밀번호로 로그인하고 로그아웃합니다. 로그인 실패 이유를 화면에 보여 줍니다. 비밀번호와 토큰은 공식 Supabase SDK가 처리합니다.
+2. 서버(`api/*`)는 `src/verify-login.mjs`(틀에서 받은 도우미, 수정하지 않음)로 `Authorization: Bearer` 토큰을 검사합니다. 토큰이 없거나 서명이 위조되었거나 만료되었거나 다른 서비스용이면 자료 없이 `401 {"error":"LOGIN_REQUIRED"}`로 거부합니다. 브라우저가 보낸 userId·role·owner_id는 믿지 않습니다.
+3. 검사에 쓴 발급자 정보(발급자·대상·공개키 주소)는 `aleph.config.json`의 `identityProvider`에 적었습니다. 비밀 키는 들어 있지 않습니다.
+4. 허용된 경로는 `aleph.config.json`의 `allowedRoutes`에 적었습니다.
+   - `GET /api/notes`: 로그인 사용자의 메모 배열 `[{id,title,body}]`
+   - `POST /api/notes`: `{id?,title,body}` → `201 {id}` (id는 UUID, 없으면 서버가 만듦. `owner_id`는 서버가 확인한 사용자 ID로 저장)
+   - `GET /api/notes/:id`: `{id,title,body}` (없으면 404)
+   - `PUT /api/notes/:id`: `{title,body}`로 수정
+   - `DELETE /api/notes/:id`: 삭제 (지운 뒤 GET은 404)
+5. 테이블 `notes`는 RLS를 켰고, 공개 키(anon)와 로그인 사용자(authenticated)에는 직접 권한을 주지 않았습니다. 서버 함수만 서버 전용 키로 읽고 씁니다.
+6. `/data.json`은 404, `/aleph.json`은 열립니다. 첫 화면 응답에 `X-Content-Type-Options: nosniff`가 붙습니다.
 
 ## 다시 실행하는 방법
 
 - 배포: `main`에 push하면 Vercel이 자동으로 다시 배포합니다.
-- 환경변수: Vercel 프로젝트 설정에서 `SUPABASE_URL`(`https://…supabase.co`, 뒤에 경로 없음)과 `SUPABASE_SECRET_KEY`(`sb_secret_…`)를 직접 넣습니다. 값은 저장소에 넣지 않습니다.
-- DB 준비: 가상 메모를 담은 SQL(`supabase/setup.local.sql`)은 `.gitignore`의 `*.local.sql`로 제외되어 있어 저장소에 없습니다. 다시 만들려면 `notes(title, content, owner_id)` 테이블을 만들고 RLS를 켠 뒤 `anon`·`authenticated` 권한을 회수하고 `service_role`에만 `select`를 줍니다.
-- 로컬 확인: `npm run build -- --local`
+- 환경변수: Vercel 프로젝트 설정에 `SUPABASE_URL`(`https://…supabase.co`, 뒤에 경로 없음)과 `SUPABASE_SECRET_KEY`(`sb_secret_…`)를 직접 넣습니다. 값은 저장소에 넣지 않습니다. 화면 코드에는 공개용 Project URL과 publishable key만 있습니다.
+- Supabase Auth: Email 로그인을 켜고 시험용 계정 A·B를 만들었습니다(가짜 이메일, 이번 과제 전용 비밀번호).
+- DB 준비: 가상 메모를 담은 SQL(`supabase/*.local.sql`)은 `.gitignore`의 `*.local.sql`로 제외되어 저장소에 없습니다. 테이블 모양은 `notes(seq, id uuid 기본키, title, body, owner_id uuid, created_at)`이며 `owner_id`에는 외래키를 걸지 않았습니다.
+- 로컬 확인: `npm install` 후 `npm run build -- --local`
 - 제출 묶음: `npm run bundle` (직접 점검 요청 결과가 `artifacts/submission.json`에 기록됩니다. 이 파일은 커밋하지 않습니다.)
 
 ## 확인 절차 (메모 문장이 남아 있지 않은지)
 
 1. 최신 GitHub 파일에서 가상 메모 문장 검색: 저장소 폴더에서 `git grep -n "실습용 가[상]"`을 실행합니다. 결과가 없어야 합니다.
 2. 배포된 공개 파일 확인: 배포 주소 뒤에 `/data.json`을 붙여 열면 404여야 합니다.
-3. 서버 API 확인: 배포 주소 뒤에 `/api/notes`를 붙여 열면 가상 메모가 JSON으로 보입니다. 이것은 아래 약점 때문에 정상입니다.
+3. 로그인 없이 `/api/notes`를 열면 가상 메모가 아니라 `{"error":"LOGIN_REQUIRED"}`와 401이 보여야 합니다.
 
 검색 결과와 남은 약점은 각각 따로 기록합니다.
 
-## 알려진 약점 (3단계에서 막을 것)
+## 알려진 약점 (4단계에서 막을 것)
 
-- `/api/notes`는 로그인 확인이 없어 **누구나** 호출할 수 있습니다. 이번 단계에서는 가상 메모만 유지하고, 3단계 전에는 실제 자료를 넣지 않습니다.
+- **소유자 검사가 없습니다.** 로그인만 되어 있으면 다른 사용자(B)가 A의 메모 id를 알 때 `GET·PUT·DELETE /api/notes/:id`로 읽고 고치고 지울 수 있습니다. 로그인은 신원 확인일 뿐 자료 접근 권한이 아닙니다.
 - 서버 함수에 호출 횟수 제한이 없습니다.
+- 처음 시드한 가상 메모 4건은 `owner_id`가 비어 있어 아무의 목록에도 나오지 않지만, id를 알면 `/api/notes/:id`로 접근할 수 있습니다.
 
 ## 옛 공개 이력의 한계
 
-이번 변경은 **현재** 정적 파일과 GitHub 최신 파일에서만 메모를 없앴습니다. 1단계 때 공개했던 커밋 기록, 이전 Vercel 배포(미리보기 주소 포함), 이미 복사되었을 수 있는 내용은 지워지지 않았습니다. 따라서 과거 노출이 해소되었다고 말할 수 없습니다. 실제 자료였다면 해당 비밀값과 자료를 폐기·교체해야 합니다.
+이 저장소의 1단계 때 공개했던 커밋 기록, 이전 Vercel 배포(미리보기 주소 포함), 이미 복사되었을 수 있는 내용은 지워지지 않았습니다. 따라서 과거 노출이 해소되었다고 말할 수 없습니다. 실제 자료였다면 해당 비밀값과 자료를 폐기·교체해야 합니다.
 
 ## 코딩 도구 규칙
 
