@@ -22,8 +22,15 @@ export default async function handler(request, response) {
       .order('id', { ascending: true });
     if (error) throw error;
     return response.status(200).json({ notes: data ?? [] });
-  } catch {
-    // 오류 객체에는 연결 정보가 섞일 수 있어 내용을 기록하거나 돌려주지 않습니다.
+  } catch (error) {
+    // 주소·키 값은 기록하지 않고, 오류 종류와 설정 모양(true/false)만 서버 로그에 남깁니다.
+    console.error('notes_read_failed', {
+      code: error?.code ?? null,
+      status: error?.status ?? null,
+      name: error?.name ?? null,
+      urlShapeOk: /^https:\/\/[a-z0-9]+\.supabase\.co$/.test(url),
+      keyIsSecretType: key.startsWith('sb_secret_'),
+    });
     return response.status(502).json({ error: 'NOTES_UNAVAILABLE' });
   }
 }
