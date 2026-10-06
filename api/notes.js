@@ -1,49 +1,42 @@
-// 3단계: 로그인 증표(토큰)를 서버가 직접 검사한 요청에만 가상 메모를 돌려줍니다.
-// 서버 전용 키는 Vercel 환경변수에서만 읽고, 응답·로그에는 절대 싣지 않습니다.
-// 브라우저가 보낸 userId·role 같은 값은 믿지 않고, 틀의 src/verify-login.mjs 검사 결과만 씁니다.
-import { createClient } from '@supabase/supabase-js';
-import config from '../aleph.config.json' with { type: 'json' };
-import { createLoginVerifier } from '../src/verify-login.mjs';
-
-let verifier;
-function loginVerifier() {
-  verifier ??= createLoginVerifier({ config, supabaseSecretKey: process.env.SUPABASE_SECRET_KEY });
-  return verifier;
-}
+// 3단계: 로그인한 사용자의 가상 메모 목록(GET)과 추가(POST).
+// 아직 소유자 검사는 하지 않습니다(4단계): /api/notes/:id 는 다른 사람의 메모도 고칠 수 있습니다.
+import { UUID, database, failed, readNoteFields, requireLogin } from '../src/notes-api.mjs';
 
 export default async function handler(request, response) {
-  response.setHeader('Cache-Control', 'no-store');
-  if (request.method !== 'GET') {
-    response.setHeader('Allow', 'GET');
+  if (request.method !== 'GET' && request.method !== 'POST') {
+    response.setHeader('Allow', 'GET, POST');
     return response.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
   }
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) {
-    return response.status(500).json({ error: 'SERVER_NOT_CONFIGURED' });
+  const login = await requireLogin(request, response);
+  if (!login) return undefined;
+
+  if (request.method === 'GET') {
+    try {
+      const { data, error } = await database()
+        .from('notes')
+        .select('id, title, body')
+        .eq('owner_id', login.userId)
+        .order('seq', { ascending: true });
+      if (error) throw error;
+      return response.status(200).json(data ?? []);
+    } catch (error) {
+      return failed(response, error, 'notes_list_failed');
+    }
   }
-  let login;
+
+  const fields = readNoteFields(request.body);
+  const wantedId = request.body?.id;
+  if (!fields || (wantedId !== undefined && !(typeof wantedId === 'string' && UUID.test(wantedId)))) {
+    return response.status(400).json({ error: 'INVALID_NOTE' });
+  }
   try {
-    login = await loginVerifier()(request.headers.authorization);
-  } catch {
-    return response.status(500).json({ error: 'SERVER_NOT_CONFIGURED' });
-  }
-  if (!login) {
-    // 토큰이 없거나, 위조·만료·다른 서비스용이면 자료 없이 거부합니다.
-    response.setHeader('WWW-Authenticate', 'Bearer');
-    return response.status(401).json({ error: 'LOGIN_REQUIRED' });
-  }
-  try {
-    const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data, error } = await supabase
-      .from('notes')
-      .select('title, content')
-      .order('id', { ascending: true });
+    // owner_id 는 서버가 확인한 사용자 ID 로만 채웁니다. 브라우저가 보낸 값은 쓰지 않습니다.
+    const row = { ...fields, owner_id: login.userId, ...(wantedId ? { id: wantedId.toLowerCase() } : {}) };
+    const { data, error } = await database().from('notes').insert(row).select('id').single();
+    if (error?.code === '23505') return response.status(409).json({ error: 'NOTE_ID_EXISTS' });
     if (error) throw error;
-    return response.status(200).json({ notes: data ?? [] });
+    return response.status(201).json({ id: data.id });
   } catch (error) {
-    // 주소·키 값은 기록하지 않고, 오류 종류만 서버 로그에 남깁니다.
-    console.error('notes_read_failed', { code: error?.code ?? null, status: error?.status ?? null });
-    return response.status(502).json({ error: 'NOTES_UNAVAILABLE' });
+    return failed(response, error, 'notes_create_failed');
   }
 }
