@@ -45,7 +45,7 @@
       <p id="auth-error" role="alert" hidden></p>
     </section>
 
-    <div class="notice">아직 서버 주소(/api/notes)에는 로그인 확인이 붙지 않았습니다. 다음 제작에서 막습니다.</div>
+    <div class="notice">서버는 로그인 증표를 직접 검사합니다. 로그인하지 않으면 자료가 보이지 않습니다.</div>
     <ul id="notes" aria-live="polite"><li>가상 자료를 불러오는 중입니다.</li></ul>
   </main>
   <script type="module">
@@ -96,25 +96,41 @@
     render((await supabase.auth.getSession()).data.session);
 
     const list = document.querySelector('#notes');
-    try {
-      const response = await fetch('/api/notes', { cache: 'no-store' });
-      if (!response.ok) throw new Error('서버에서 자료를 읽을 수 없습니다.');
-      const data = await response.json();
-      if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
-      list.replaceChildren(...data.notes.map(note => {
-        const item = document.createElement('li');
-        const title = document.createElement('strong');
-        const content = document.createElement('span');
-        title.textContent = note.title;
-        content.textContent = note.content;
-        item.append(title, content);
-        return item;
-      }));
-    } catch (error) {
+    function showMessage(text) {
       const item = document.createElement('li');
-      item.textContent = error.message;
+      item.textContent = text;
       list.replaceChildren(item);
     }
+    // 로그인 증표를 실어 서버에 요청합니다. 서버가 증표를 직접 검사하고, 틀리면 자료를 주지 않습니다.
+    async function loadNotes(session) {
+      if (!session?.access_token) {
+        showMessage('로그인하면 가상 자료를 볼 수 있습니다.');
+        return;
+      }
+      try {
+        const response = await fetch('/api/notes', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (response.status === 401) throw new Error('로그인 확인에 실패했습니다. 다시 로그인해 주세요.');
+        if (!response.ok) throw new Error('서버에서 자료를 읽을 수 없습니다.');
+        const data = await response.json();
+        if (!Array.isArray(data.notes)) throw new Error('자료 형식이 맞지 않습니다.');
+        list.replaceChildren(...data.notes.map(note => {
+          const item = document.createElement('li');
+          const title = document.createElement('strong');
+          const content = document.createElement('span');
+          title.textContent = note.title;
+          content.textContent = note.content;
+          item.append(title, content);
+          return item;
+        }));
+      } catch (error) {
+        showMessage(error.message);
+      }
+    }
+    supabase.auth.onAuthStateChange((_event, session) => { loadNotes(session); });
+    await loadNotes((await supabase.auth.getSession()).data.session);
   </script>
 </body>
 </html>
