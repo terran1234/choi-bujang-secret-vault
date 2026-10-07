@@ -55,9 +55,9 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
-  if (config.step === 3 || config.step === 4) {
+  if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
     const sampleId = '22222222-2222-4222-8222-222222222222';
     const note = { title: 'attack-check', body: 'blocked-request-only' };
@@ -80,10 +80,12 @@ export async function runAttackChecks(config) {
     if (config.step === 3) return attempts;
     // 4단계: 공개 키(anon)로 Supabase Data API 를 직접 두드려 읽기·추가·수정·삭제가 모두 거부되는지 기록합니다.
     const project = new URL(config.identityProvider.issuer).origin;
-    const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-    const publishable = /sb_publishable_[A-Za-z0-9_-]+/u.exec(html)?.[0];
-    if (!publishable) throw new Error('화면 코드에서 공개용(publishable) 키를 찾지 못했습니다.');
+    // 5단계부터 화면 코드에는 키가 없으므로, 공개 키는 환경변수 SUPABASE_PUBLISHABLE_KEY 로만 받습니다.
+    const publishable = process.env.SUPABASE_PUBLISHABLE_KEY?.trim()
+      || await readFile(new URL('../public/index.html', import.meta.url), 'utf8')
+        .then(html => /sb_publishable_[A-Za-z0-9_-]+/u.exec(html)?.[0], () => undefined);
     const direct = async (method, query, payload) => {
+      if (!publishable) return '미실행: 공개 키를 환경변수 SUPABASE_PUBLISHABLE_KEY 로 받지 못해 보내지 않음';
       const response = await fetch(`${project}/rest/v1/notes${query}`, {
         method, redirect: 'error', signal: AbortSignal.timeout(10000),
         headers: { apikey: publishable, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
@@ -102,6 +104,23 @@ export async function runAttackChecks(config) {
       { attackId: 'cross_user_note_access', expected: 'B 가 A 의 메모를 읽기·수정·삭제하면 거부됨',
         observed: '미실행: 코드에는 A/B 로그인 정보가 없어 직접 보내지 않음. 가짜 DB 단위 시험 5건과 화면 확인만 했음' },
     );
+    if (config.step >= 5) {
+      // 5단계: 공개 첫 화면과 /data.json 에서 서버 전용 키·공개 키·가상 메모 문장을 검색합니다(값은 기록하지 않고 있음/없음만).
+      const page = await get(app, '/').then(r => r.text(), () => '');
+      const data = await get(app, '/data.json');
+      const dataText = await data.text().catch(() => '');
+      const found = text => ({
+        secret: /sb_secret_|service_role/u.test(text),
+        publicKey: /sb_publishable_|eyJ[A-Za-z0-9_-]{10,}\./u.test(text),
+        memo: /실습용 가[상]/u.test(text),
+      });
+      const mark = flag => (flag ? '있음' : '없음');
+      const home = found(page);
+      const file = found(dataText);
+      attempts.push({ attackId: 'public_files_key_search',
+        expected: '공개 첫 화면과 /data.json 에 서버 전용 키·공개 키·가상 메모 문장이 없음',
+        observed: `첫 화면에서 서버 전용 키 ${mark(home.secret)}, 공개 키 ${mark(home.publicKey)}, 가상 메모 문장 ${mark(home.memo)} / /data.json HTTP ${data.status}, 서버 전용 키 ${mark(file.secret)}, 가상 메모 문장 ${mark(file.memo)}` });
+    }
     return attempts;
   }
   if (config.step === 1) {
