@@ -1,4 +1,4 @@
-// 5단계 서버 경유 로그인 시험: 가짜 Supabase 로 /api/auth/* 함수를 돌립니다.
+﻿// 5단계 서버 경유 로그인 시험: 가짜 Supabase 로 /api/auth/* 함수를 돌립니다.
 // 실행: node --experimental-test-module-mocks --test test/auth-api.test.mjs
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
@@ -19,7 +19,7 @@ mock.module('@supabase/supabase-js', {
   },
 });
 process.env.SUPABASE_URL = 'https://example-project.supabase.co';
-process.env.SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_dummy_for_test';
+process.env.SUPABASE_PUBLISHABLE_KEY = 'dummy-publishable-for-test';
 process.env.SUPABASE_SECRET_KEY = 'dummy-secret-for-test';
 const login = (await import('../api/auth/login.js')).default;
 const refresh = (await import('../api/auth/refresh.js')).default;
@@ -41,7 +41,7 @@ test('로그인 성공: 필요한 값만 돌려주고 비밀번호는 싣지 않
   assert.equal(out.status, 200);
   assert.deepEqual(Object.keys(out.json).sort(), ['access_token', 'email', 'expires_at', 'refresh_token']);
   assert.equal(JSON.stringify(out.json).includes('pw-for-test'), false);
-  assert.deepEqual(calls[0], ['signIn', 'https://example-project.supabase.co', 'sb_publishable_dummy_for_test', 'student-a@example.com']);
+  assert.deepEqual(calls[0], ['signIn', 'https://example-project.supabase.co', 'dummy-publishable-for-test', 'student-a@example.com']);
 });
 
 test('틀린 비밀번호는 401, 잘못된 입력은 400, 다른 방식은 405', async () => {
