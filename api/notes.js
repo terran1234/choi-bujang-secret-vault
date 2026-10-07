@@ -1,5 +1,6 @@
-// 3단계: 로그인한 사용자의 가상 메모 목록(GET)과 추가(POST).
-// 아직 소유자 검사는 하지 않습니다(4단계): /api/notes/:id 는 다른 사람의 메모도 고칠 수 있습니다.
+// 4단계: 로그인한 사용자의 가상 메모 목록(GET)과 추가(POST).
+// 목록은 본인 메모만 주고, 추가할 때 owner_id 는 본문 값을 무시하고 서버가 확인한 사용자 ID 로만 저장합니다.
+// 한 건 읽기·수정·삭제의 소유자 검사는 api/notes/[id].js 에 있습니다.
 import { UUID, database, failed, readNoteFields, requireLogin } from '../src/notes-api.mjs';
 
 export default async function handler(request, response) {

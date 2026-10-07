@@ -53,6 +53,11 @@ export function readNoteFields(body) {
   return { title: cleanTitle, body: text };
 }
 
+// 수정 요청 본문이 다른 사람을 주인으로 지정하려는지 봅니다(본문의 owner_id 는 절대 쓰지 않습니다).
+export function ownerChangeAttempted(body, userId) {
+  return body !== null && typeof body === 'object' && 'owner_id' in body && body.owner_id !== userId;
+}
+
 // 오류 종류만 서버 로그에 남깁니다. 주소·키 값은 남기지 않습니다.
 export function failed(response, error, label) {
   console.error(label, { code: error?.code ?? null, status: error?.status ?? null });
