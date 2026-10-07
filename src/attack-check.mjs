@@ -1,5 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
+import { readFile } from 'node:fs/promises';
+
 function appUrl(config) {
   let app;
   try {
@@ -53,9 +55,9 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
-  if (config.step === 3) {
+  if (config.step === 3 || config.step === 4) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
     const sampleId = '22222222-2222-4222-8222-222222222222';
     const note = { title: 'attack-check', body: 'blocked-request-only' };
@@ -67,7 +69,7 @@ export async function runAttackChecks(config) {
       request(app, 'DELETE', `/api/notes/${sampleId}`),
       request(app, 'GET', '/api/notes', { token: forgedToken(config) }),
     ]);
-    return [
+    const attempts = [
       { attackId: 'anonymous_note_list', expected: '로그인 없이 메모 목록 요청이 401/403 과 JSON 오류로 거부됨', observed: `비로그인 요청에서 ${blocked(list)}` },
       { attackId: 'anonymous_note_create', expected: '로그인 없이 메모 추가가 거부됨', observed: `비로그인 요청에서 ${blocked(create)}` },
       { attackId: 'anonymous_note_read_one', expected: '로그인 없이 메모 한 건 조회가 거부됨', observed: `비로그인 요청에서 ${blocked(one)}` },
@@ -75,6 +77,32 @@ export async function runAttackChecks(config) {
       { attackId: 'anonymous_note_delete', expected: '로그인 없이 메모 삭제가 거부됨', observed: `비로그인 요청에서 ${blocked(remove)}` },
       { attackId: 'forged_login_token', expected: '서명이 위조된 로그인 토큰이 거부됨', observed: `위조 토큰 요청에서 ${blocked(forged)}` },
     ];
+    if (config.step === 3) return attempts;
+    // 4단계: 공개 키(anon)로 Supabase Data API 를 직접 두드려 읽기·추가·수정·삭제가 모두 거부되는지 기록합니다.
+    const project = new URL(config.identityProvider.issuer).origin;
+    const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+    const publishable = /sb_publishable_[A-Za-z0-9_-]+/u.exec(html)?.[0];
+    if (!publishable) throw new Error('화면 코드에서 공개용(publishable) 키를 찾지 못했습니다.');
+    const direct = async (method, query, payload) => {
+      const response = await fetch(`${project}/rest/v1/notes${query}`, {
+        method, redirect: 'error', signal: AbortSignal.timeout(10000),
+        headers: { apikey: publishable, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
+      });
+      let json = null;
+      try { json = await response.json(); } catch { /* 빈 응답 */ }
+      const rows = Array.isArray(json) ? json.length : 0;
+      return `공개 키 직접 요청에서 HTTP ${response.status}, 오류 코드 ${typeof json?.code === 'string' ? json.code : '없음'}, 돌려받은 행 ${rows}건`;
+    };
+    attempts.push(
+      { attackId: 'anon_direct_select', expected: '공개 키로 DB 직접 읽기가 거부됨', observed: await direct('GET', '?select=id') },
+      { attackId: 'anon_direct_insert', expected: '공개 키로 DB 직접 추가가 거부됨', observed: await direct('POST', '', { title: 'attack-check', body: 'blocked-request-only' }) },
+      { attackId: 'anon_direct_update', expected: '공개 키로 DB 직접 수정이 거부됨', observed: await direct('PATCH', '?title=eq.attack-check', { title: 'attack-check-2' }) },
+      { attackId: 'anon_direct_delete', expected: '공개 키로 DB 직접 삭제가 거부됨', observed: await direct('DELETE', '?title=eq.attack-check') },
+      { attackId: 'cross_user_note_access', expected: 'B 가 A 의 메모를 읽기·수정·삭제하면 거부됨',
+        observed: '미실행: 코드에는 A/B 로그인 정보가 없어 직접 보내지 않음. 가짜 DB 단위 시험 5건과 화면 확인만 했음' },
+    );
+    return attempts;
   }
   if (config.step === 1) {
     const response = await get(app, '/data.json');
