@@ -121,6 +121,16 @@ export async function runAttackChecks(config) {
         expected: '공개 첫 화면과 /data.json 에 서버 전용 키·공개 키·가상 메모 문장이 없음',
         observed: `첫 화면에서 서버 전용 키 ${mark(home.secret)}, 공개 키 ${mark(home.publicKey)}, 가상 메모 문장 ${mark(home.memo)} / /data.json HTTP ${data.status}, 서버 전용 키 ${mark(file.secret)}, 가상 메모 문장 ${mark(file.memo)}` });
     }
+    if (config.step >= 5) {
+      // 심판은 설정 파일이 아니라 배포된 /aleph.json 을 읽습니다. 실제로 열어서 공개 설정이 실렸는지 기록합니다.
+      const aleph = await get(app, '/aleph.json');
+      const published = await readJson(aleph);
+      const original = typeof published?.originalApiUrl === 'string' && /^https:\/\/[^?#\s]+$/u.test(published.originalApiUrl);
+      const routes = Array.isArray(published?.allowedRoutes) ? published.allowedRoutes.length : 0;
+      attempts.push({ attackId: 'published_aleph_json_config',
+        expected: '배포된 /aleph.json 에 https originalApiUrl 과 allowedRoutes 가 있음',
+        observed: `/aleph.json HTTP ${aleph.status}, originalApiUrl ${original ? '있음' : '없음'}, allowedRoutes ${routes}개` });
+    }
     return attempts;
   }
   if (config.step === 1) {

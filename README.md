@@ -17,7 +17,7 @@
 3. 서버는 주소의 `:id`와 본문의 `owner_id`를 믿지 않고 검증된 사용자 ID와 DB의 `owner_id`를 비교합니다(목록·읽기·수정·삭제는 본인 메모만, 추가는 검증된 ID로 저장, 남의 메모는 404, 소유자 변경 시도는 403).
 4. 허용된 경로는 `aleph.config.json`의 `allowedRoutes`에 적었습니다: `GET·POST /api/notes`, `GET·PUT·DELETE /api/notes/:id`.
 5. **DB 권한(5단계)**: 테이블 `notes`의 `PUBLIC`·`anon`·`authenticated` 직접 권한을 모두 회수했습니다. 서버 함수만 서버 전용 키(`service_role`)로 읽고 씁니다. RLS는 켜 둔 채이고, 이전 단계의 `auth.uid() = owner_id` 정책은 권한이 다시 열릴 때를 대비한 두 번째 방어선으로 남아 있습니다. 원본 자료 API 주소(쿼리 없음)는 `aleph.config.json`의 `originalApiUrl`에 적었습니다.
-6. `/data.json`은 404, `/aleph.json`은 열립니다. 첫 화면 응답에 `X-Content-Type-Options: nosniff`가 붙습니다.
+6. `/data.json`은 404, `/aleph.json`은 열립니다. 빌드가 만드는 `/aleph.json`에는 배포 저장소·커밋·주소 외에 설정 파일의 공개 값인 `originalApiUrl`, `allowedRoutes`, `identityProvider`(발급자·대상·공개키 주소)가 실립니다(`scripts/deployment-identity.mjs`). 값이 이상하면 빌드가 멈춥니다. 비밀값은 설정 파일에 두지 않으므로 여기에도 없습니다. 첫 화면 응답에는 `X-Content-Type-Options: nosniff`가 붙습니다.
 
 ## 다시 실행하는 방법
 
