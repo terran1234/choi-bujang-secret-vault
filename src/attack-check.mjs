@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5, 6, 7].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6, 7, 8].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -158,6 +158,19 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'relogin_gate_real_data',
         expected: '다시 로그인 확인 전 실제 자료가 막힘',
         observed: '미실행: 엔진이 새 로그인 시각을 확인해 주는 계약이 없어 실제 자료 차단은 시험하지 못함' });
+    }
+    if (config.step >= 8) {
+      // 8단계: 판정기에 구역별 가상 요청을 직접 넣어 봅니다(내 컴퓨터 연습이며 심판 판정이 아닙니다).
+      const { decide } = await import('./decider.mjs');
+      const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
+      const { normal } = fixtureRequests();
+      const ask = async patch => { const r = await decide({ ...normal, ...patch }); return `${r.decision}·${r.reasonCode}`; };
+      attempts.push({ attackId: 'zone_rules_local_decider',
+        expected: '자기 메모 한 건 읽기는 allow, 메모 전체 목록·공지 쓰기·강사 자료는 deny',
+        observed: `내 컴퓨터 판정기 연습: 메모 한 건 ${await ask({})}, 메모 목록 ${await ask({ route: 'GET /notes' })}, 공지 수정 ${await ask({ service: 'announcements', method: 'PUT', route: 'PUT /announcements/:id' })}, 강사 자료 ${await ask({ service: 'instructor', route: 'GET /instructor/:id' })} (심판 판정 아님)` });
+      attempts.push({ attackId: 'zone_other_user_note_api',
+        expected: '다른 사람의 메모를 API로 조회·수정하면 거부됨',
+        observed: '미실행: 실제 배포에 A/B 로그인 정보가 없어 보내지 않음. 가짜 DB 단위 시험(test/owner-isolation.test.mjs)으로만 확인' });
     }
     return attempts;
   }

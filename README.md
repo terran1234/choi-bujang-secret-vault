@@ -1,4 +1,4 @@
-# BYTE BACK 방어전 · 자료실 (7단계 저장점)
+# BYTE BACK 방어전 · 자료실 (8단계 저장점)
 
 이 저장소는 방어전 시작 틀에서 만든 학생의 자료실입니다. 들어 있는 메모는 모두 가상 자료이고, 실제 개인정보·비밀번호·키는 넣지 않습니다.
 
@@ -10,7 +10,8 @@
 - **4단계**: 서버가 검증한 사용자와 메모의 `owner_id`를 비교해 본인 메모만 읽기·추가·수정·삭제하게 했습니다.
 - **5단계**: 자료 요청을 서버 한곳으로 모았습니다. 화면은 저장소 주소와 키 없이 서버 함수만 부르고, 자료 테이블의 직접 접근 권한을 회수했습니다.
 - **6단계**: 판정기(`src/decider.mjs`)에 `device_registered` 규칙을 넣었습니다. 요청의 `deviceRegistered`가 `true`일 때만 허용하고, 미등록이거나 값이 없으면 `deny`와 이유 코드 `device_not_registered`로 거부합니다.
-- **7단계 (현재)**: 판정기에 `step_up_required` 규칙을 더했습니다. 처음 보는 네트워크(`unusual`)에서 평소와 다른 시각(23시~5시)에 최근 위험 사건이 10회 이상 쌓인 복합 사건은 `step_up`(추가 확인)으로 보내고, 정상 사건은 허용합니다. 지역 하나만으로는 판단하지 않습니다.
+- **7단계**: 판정기에 `step_up_required` 규칙을 더했습니다. 처음 보는 네트워크(`unusual`)에서 평소와 다른 시각(23시~5시)에 최근 위험 사건이 10회 이상 쌓인 복합 사건은 `step_up`(추가 확인)으로 보내고, 정상 사건은 허용합니다. 지역 하나만으로는 판단하지 않습니다.
+- **8단계 (현재)**: 자료를 구역으로 나눴습니다. 판정기에 `resource_zone` 규칙을 더했고, 자료 API는 자원 ID(`note:<id>`)를 머리글 `X-Resource-Id`로 붙이고 거부 사유를 짧게 서버 로그에 남깁니다.
 
 ## 지금 작동하는 기능
 
@@ -35,6 +36,8 @@
 
 8. **판정기(7단계)**: `signals.source`가 `judge_fixture`이고 `network`·`hour` 모양이 맞을 때만 신호를 읽습니다(출처가 `none`이거나 값이 없으면 정상값으로 채우지 않고 신호 없음). 이미 재확인된 요청(`stepUp.verified`가 true, 나이 0~900초)은 다시 보내지 않고 허용합니다. 규칙 ID는 `step_up_required`, 이유 코드도 `step_up_required`입니다. 엔진이 새 로그인 시각을 확인해 주는 계약은 `docs/DECIDER_REQUEST.md`에 `stepUp` 항목뿐이라, 실제 자료 차단·재로그인 뒤 허용은 **미실행**입니다.
 
+9. **구역 규칙(8단계)**: 판정기는 서비스와 정확한 경로 모양만 봅니다. 메모(`notes`)는 `GET·PUT·DELETE /notes/:id`만 허용하고 ID 없는 목록(`GET /notes`)·추가(`POST`)는 거부합니다. 반 공지(`announcements`)는 `GET`만 허용하고 쓰기는 모두 거부합니다. 강사 자료(`instructor`)와 알 수 없는 서비스·경로는 거부합니다. 거부 이유 코드는 `zone_not_allowed`, 규칙 ID는 `resource_zone`입니다. 메모 주인 비교는 판정기가 아니라 자료 API(`api/notes/[id].js`)가 검증된 사용자 ID와 DB의 `owner_id`로 합니다. 요청 본문의 `role`·`owner_id`는 읽지 않습니다. `allowedRoutes`는 `GET·PUT·DELETE /api/notes/:id`만 적었습니다. 강사의 공지 수정 관리 경로와 공지·강사 자료 저장소는 아직 만들지 않았습니다. `zone_not_allowed`가 운영 등록부의 허용 이유 코드인지는 확인하지 못했습니다.
+
 ## 확인 절차
 
 1. 최신 GitHub 파일에서 가상 메모 문장 검색: 저장소 폴더에서 `git grep -n "실습용 가[상]"`을 실행합니다. 결과가 없어야 합니다.
@@ -45,6 +48,7 @@
 
 6. 6단계: `npm run decider:test`를 실행합니다. 「등록 기기의 정상 요청」은 통과(allow), 「미등록 기기의 가상 요청」은 deny·`device_not_registered`로 나와야 합니다. 이 시험은 가상 요청 연습이며 심판 판정이 아닙니다. 미등록 기기 공격은 심판이 시험합니다.
 7. 7단계: `npm run decider:test`에서 4건(등록 정상 통과, 미등록 거부, 복합 이상 접속은 추가 확인, 다시 확인한 복합 이상 접속은 허용)이 모두 통과해야 합니다. `npm run fixture:7`은 정상 allow, 복합 이상 step_up을 보여 줍니다. 가상 요청 연습이며 심판 판정이 아닙니다.
+8. 8단계: `npm run decider:test`가 통과해야 합니다. 판정기에 가상 요청을 넣으면 자기 메모 읽기는 allow, 메모 전체 목록·공지 쓰기·강사 자료·알 수 없는 경로는 deny·`zone_not_allowed`로 나옵니다. 가상 요청 연습이며 심판 판정이 아닙니다. 다른 사람 메모 거부는 `node --experimental-test-module-mocks --test test/owner-isolation.test.mjs`에서 확인합니다.
 
 검색 결과와 남은 약점은 각각 따로 기록합니다.
 

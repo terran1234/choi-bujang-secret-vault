@@ -9,6 +9,11 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const TITLE_MAX = 120;
 const BODY_MAX = 2000;
 
+// 8단계: 자원 종류마다 서로 다른 자원 ID 접두어를 씁니다(메모 note:, 반 공지 announcement:, 강사 자료 instructor:).
+// 요청마다 서버가 구별할 수 있도록 응답 머리글 X-Resource-Id 에 싣습니다. 자료 내용은 싣지 않습니다.
+export const RESOURCE_KIND = Object.freeze({ note: 'note', announcement: 'announcement', instructor: 'instructor' });
+export const resourceId = (kind, id) => `${RESOURCE_KIND[kind]}:${id}`;
+
 let verifier;
 function loginVerifier() {
   verifier ??= createLoginVerifier({ config, supabaseSecretKey: process.env.SUPABASE_SECRET_KEY });
@@ -56,6 +61,12 @@ export function readNoteFields(body) {
 // 수정 요청 본문이 다른 사람을 주인으로 지정하려는지 봅니다(본문의 owner_id 는 절대 쓰지 않습니다).
 export function ownerChangeAttempted(body, userId) {
   return body !== null && typeof body === 'object' && 'owner_id' in body && body.owner_id !== userId;
+}
+
+// 거부 사유를 짧게 남깁니다(사유 코드만, 사용자·자료 내용은 남기지 않습니다).
+export function denied(response, reason) {
+  console.warn('note_access_denied', { reason });
+  return response.status(404).json({ error: 'NOT_FOUND' });
 }
 
 // 오류 종류만 서버 로그에 남깁니다. 주소·키 값은 남기지 않습니다.

@@ -1,11 +1,11 @@
 // 4단계: 메모 한 건 읽기(GET)·수정(PUT)·삭제(DELETE). 서버가 검증한 사용자의 메모만 허용합니다.
 // 주소의 id 와 본문의 owner_id 는 믿지 않습니다. 남의 메모와 없는 메모는 똑같이 404 로 답해 존재 여부를 알려 주지 않습니다.
 import {
-  UUID, database, failed, ownerChangeAttempted, readNoteFields, requireLogin,
+  UUID, database, denied, failed, ownerChangeAttempted, readNoteFields, requireLogin, resourceId,
 } from '../../src/notes-api.mjs';
 
 const METHODS = ['GET', 'PUT', 'DELETE'];
-const notFound = (response) => response.status(404).json({ error: 'NOT_FOUND' });
+const notFound = (response) => denied(response, 'not_owner_or_missing');
 
 export default async function handler(request, response) {
   if (!METHODS.includes(request.method)) {
@@ -16,7 +16,9 @@ export default async function handler(request, response) {
   if (!login) return undefined;
 
   const id = typeof request.query?.id === 'string' ? request.query.id.toLowerCase() : '';
-  if (!UUID.test(id)) return notFound(response);
+  if (!UUID.test(id)) return denied(response, 'bad_id');
+  response.setHeader('X-Resource-Id', resourceId('note', id));
+  // role·owner_id 는 요청에서 읽지 않습니다. 소유자 비교는 검증된 사용자 ID 와 DB 의 owner_id 로만 합니다.
   const owner = login.userId;
   const notes = database().from('notes');
 

@@ -11,6 +11,7 @@ export default async function handler(request, response) {
   const login = await requireLogin(request, response);
   if (!login) return undefined;
 
+  response.setHeader('X-Resource-Id', 'note:list-own');
   if (request.method === 'GET') {
     try {
       const { data, error } = await database()
