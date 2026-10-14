@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5, 6, 7, 8].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -171,6 +171,21 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'zone_other_user_note_api',
         expected: '다른 사람의 메모를 API로 조회·수정하면 거부됨',
         observed: '미실행: 실제 배포에 A/B 로그인 정보가 없어 보내지 않음. 가짜 DB 단위 시험(test/owner-isolation.test.mjs)으로만 확인' });
+    }
+    if (config.step >= 9) {
+      // 9단계: 탐지 함수에 가상 조회 사건을 직접 넣어 봅니다(내 컴퓨터 연습이며 실제 회수나 심판 판정이 아닙니다).
+      const { detect } = await import('./detect.mjs');
+      const reads = (count, intervalSeconds) => Array.from({ length: count }, (_, index) => ({
+        at: new Date(Date.UTC(2026, 9, 1) + index * intervalSeconds * 1000).toISOString(),
+        method: 'GET', identity: { sub: 'learner_fixture' },
+      }));
+      const text = result => (result.action === 'propose_revocation' ? `${result.action}·${result.reasonCode}` : result.action);
+      attempts.push({ attackId: 'burst_read_local_detect',
+        expected: '10분 안 121건 조회는 propose_revocation, 정확히 120건과 느린 조회는 observe',
+        observed: `내 컴퓨터 탐지 연습: 121건 ${text(detect(reads(121, 2)))}, 120건 ${text(detect(reads(120, 2)))}, 느린 200건 ${text(detect(reads(200, 7)))} (실제 회수 아님)` });
+      attempts.push({ attackId: 'revocation_enforcement_real',
+        expected: '회수 제안 뒤 실제로 접속 권한이 거둬짐',
+        observed: '미실행: 회수 집행은 운영 엔진 몫이라 이 저장소에서 연결·시험하지 못함' });
     }
     return attempts;
   }
