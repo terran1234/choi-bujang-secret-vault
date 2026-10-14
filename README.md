@@ -1,4 +1,4 @@
-# BYTE BACK 방어전 · 자료실 (5단계 저장점)
+# BYTE BACK 방어전 · 자료실 (6단계 저장점)
 
 이 저장소는 방어전 시작 틀에서 만든 학생의 자료실입니다. 들어 있는 메모는 모두 가상 자료이고, 실제 개인정보·비밀번호·키는 넣지 않습니다.
 
@@ -8,7 +8,8 @@
 - **2단계**: 메모를 코드 밖 Supabase 테이블 `notes`로 옮기고 서버 함수로 읽게 했습니다. `/data.json`은 404입니다.
 - **3단계**: Supabase Auth 이메일 로그인·로그아웃을 붙이고, 서버가 로그인 증표(토큰)를 직접 검사합니다.
 - **4단계**: 서버가 검증한 사용자와 메모의 `owner_id`를 비교해 본인 메모만 읽기·추가·수정·삭제하게 했습니다.
-- **5단계 (현재)**: 자료 요청을 서버 한곳으로 모았습니다. 화면은 저장소 주소와 키 없이 서버 함수만 부르고, 자료 테이블의 직접 접근 권한을 회수했습니다.
+- **5단계**: 자료 요청을 서버 한곳으로 모았습니다. 화면은 저장소 주소와 키 없이 서버 함수만 부르고, 자료 테이블의 직접 접근 권한을 회수했습니다.
+- **6단계 (현재)**: 판정기(`src/decider.mjs`)에 `device_registered` 규칙을 넣었습니다. 요청의 `deviceRegistered`가 `true`일 때만 허용하고, 미등록이거나 값이 없으면 `deny`와 이유 코드 `device_not_registered`로 거부합니다.
 
 ## 지금 작동하는 기능
 
@@ -29,6 +30,8 @@
 - 서버 함수 시험: `node --experimental-test-module-mocks --test test/owner-isolation.test.mjs test/auth-api.test.mjs` (가짜 DB·가짜 Supabase로 소유자 검사와 로그인 함수를 시험합니다.)
 - 제출 묶음: `npm run bundle` (공개 키로 원본 API를 직접 부르는 점검에는 환경변수 `SUPABASE_PUBLISHABLE_KEY`가 필요하며, 없으면 미실행으로 기록합니다. 결과는 `artifacts/submission.json`에 기록되고 커밋하지 않습니다.)
 
+7. **판정기(6단계)**: `decide(request)`는 `request.deviceRegistered === true`일 때만 `allow`(이유 `approved`), 아니면 `deny`(이유 `device_not_registered`)를 돌려줍니다. 규칙 ID는 `device_registered`입니다.
+
 ## 확인 절차
 
 1. 최신 GitHub 파일에서 가상 메모 문장 검색: 저장소 폴더에서 `git grep -n "실습용 가[상]"`을 실행합니다. 결과가 없어야 합니다.
@@ -36,6 +39,8 @@
 3. 로그인 없이 `/api/notes`를 열면 `{"error":"LOGIN_REQUIRED"}`와 401이 보여야 합니다.
 4. 첫 화면의 소스에서 `sb_`, `supabase`를 검색해 키와 주소가 없는지 확인합니다.
 5. 공개 키로 원본 자료 API(`originalApiUrl`)를 직접 읽기·추가·수정·삭제하면 모두 `permission denied`(42501)여야 합니다.
+
+6. 6단계: `npm run decider:test`를 실행합니다. 「등록 기기의 정상 요청」은 통과(allow), 「미등록 기기의 가상 요청」은 deny·`device_not_registered`로 나와야 합니다. 이 시험은 가상 요청 연습이며 심판 판정이 아닙니다. 미등록 기기 공격은 심판이 시험합니다.
 
 검색 결과와 남은 약점은 각각 따로 기록합니다.
 
