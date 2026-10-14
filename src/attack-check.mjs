@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -199,14 +199,15 @@ export async function runAttackChecks(config) {
     }
     if (config.step >= 11) {
       // 11단계: 로그인 없이 기기 승인 경로와 앱 설정 파일을 실제로 요청해 봅니다.
-      const [status, ask, manifest] = await Promise.all([
+      const [status, ask, manifest, ops] = await Promise.all([
         request(app, 'GET', '/api/device/status'),
         request(app, 'POST', '/api/device/request'),
         get(app, '/manifest.webmanifest').then(r => r.status, () => 0),
+        config.step >= 12 ? request(app, 'GET', '/api/ops/summary') : Promise.resolve(null),
       ]);
       attempts.push({ attackId: 'device_routes_anonymous',
         expected: '로그인 없이 기기 상태 확인·승인 요청이 거부되고, 앱 설정 파일(manifest)은 열림',
-        observed: `비로그인 상태 확인 ${blocked(status)} / 승인 요청 ${blocked(ask)} / manifest HTTP ${manifest}` });
+        observed: `비로그인 상태 확인 ${blocked(status)} / 승인 요청 ${blocked(ask)} / manifest HTTP ${manifest}${ops ? ` / 12단계 작전 현황 ${blocked(ops)}` : ''}` });
     }
     return attempts;
   }

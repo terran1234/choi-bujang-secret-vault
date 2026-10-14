@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BYTE BACK | 탈환 작전실</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; background: #101a28; color: #ecf4ff; }
+    main { max-width: 860px; margin: 0 auto; padding: 40px 22px 64px; }
+    .eyebrow { color: #8ad8df; font-size: 14px; font-weight: 700; letter-spacing: .08em; }
+    h1 { margin: 14px 0; font-size: clamp(28px, 6vw, 42px); }
+    h2 { margin: 28px 0 10px; font-size: 20px; }
+    p, td, th { font-size: 15px; line-height: 1.6; color: #bfd0e5; }
+    .box { margin: 18px 0; padding: 16px 18px; border: 1px solid #51667c; border-radius: 14px; background: #1a2a3d; }
+    .warn { border-color: #d0b073; color: #ffefc9; background: #5c45214a; }
+    form { display: grid; gap: 10px; }
+    label { display: grid; gap: 4px; font-size: 14px; color: #bfd0e5; }
+    input { padding: 10px 12px; border: 1px solid #51667c; border-radius: 8px; background: #101a28; color: #ecf4ff; font-size: 16px; }
+    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #8ad8df; color: #101a28; font-size: 16px; font-weight: 700; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #34475c; vertical-align: top; }
+    .ok { color: #8ae0a6; } .bad { color: #ffb4c0; } .na { color: #ffd88a; }
+    #error { color: #ffb4c0; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">BYTE BACK · 12단계 탈환 작전실</div>
+    <h1>탈환 작전실</h1>
+    <div class="box warn">이 화면의 표시는 통과 근거가 아닙니다. 서버가 방금 계산하거나 DB에서 센 값을 그대로 보여 주고, 연결하지 못한 것은 「미연결」로 적습니다. 가상 메모 본문은 표시하지 않습니다. <a href="/" style="color:#8ad8df">자료실로 돌아가기</a></div>
+
+    <form id="login" class="box">
+      <label>이메일 <input id="email" type="email" autocomplete="email" required></label>
+      <label>비밀번호 <input id="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">로그인하고 작전 현황 보기</button>
+    </form>
+    <p id="error" role="alert" hidden></p>
+
+    <section id="board" hidden>
+      <p id="meta"></p>
+      <h2>판정기 규칙</h2>
+      <div class="box" id="rules"></div>
+      <h2>판정기 가상 요청 결과</h2>
+      <table><thead><tr><th>요청</th><th>기대</th><th>실제</th><th>이유 코드</th><th>일치</th></tr></thead><tbody id="decider"></tbody></table>
+      <h2>탐지 사건</h2>
+      <div class="box" id="detection-rule"></div>
+      <table><thead><tr><th>조회 건수</th><th>결과</th><th>일치</th></tr></thead><tbody id="detection"></tbody></table>
+      <h2>회수 상태</h2>
+      <div class="box" id="revocation"></div>
+      <h2>복구 버전</h2>
+      <div class="box" id="restore"></div>
+      <h2>이 기기</h2>
+      <div class="box" id="device"></div>
+    </section>
+  </main>
+  <script type="module">
+    // 로그인 증표는 페이지 메모리에만 둡니다. 브라우저 저장소에는 아무것도 넣지 않습니다.
+    const form = document.querySelector('#login');
+    const errorBox = document.querySelector('#error');
+    const board = document.querySelector('#board');
+    const el = (tag, text, className) => {
+      const node = document.createElement(tag);
+      node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    };
+    const row = (cells) => {
+      const tr = document.createElement('tr');
+      for (const [text, className] of cells) tr.append(el('td', text, className));
+      return tr;
+    };
+    const mark = (ok) => [ok ? '일치' : '불일치', ok ? 'ok' : 'bad'];
+    const put = (id, ...nodes) => document.querySelector(id).replaceChildren(...nodes);
+    const sources = { live_server_computation: '서버가 방금 계산', database_count: 'DB에서 센 숫자', database_lookup: 'DB에서 조회' };
+    const deviceNames = { none: '요청 전', pending: '승인 대기', approved: '승인됨', revoked: '회수됨' };
+
+    function show(s) {
+      document.querySelector('#meta').textContent = `생성 시각 ${s.generatedAt} · 단계 ${s.step}`;
+      put('#rules', el('p', `규칙 이름: ${s.rules.ruleIds.join(', ')}`),
+        el('p', `구역 표: ${Object.entries(s.rules.zones).map(([k, v]) => `${k} ${v}개`).join(', ')} · 허용 경로 ${s.rules.allowedRoutes}개 (${sources[s.rules.source]})`));
+      put('#decider', ...s.decider.results.map(r => row([[r.name], [r.expected], [r.decision], [r.reasonCode], mark(r.matches)])));
+      put('#detection-rule', el('p', `규칙 ${s.detection.rule}: 같은 사용자의 조회가 ${s.detection.windowMinutes}분 안에 ${s.detection.limit}건을 넘으면 회수 제안 (${sources[s.detection.source]}, 가상 사건)`));
+      put('#detection', ...s.detection.results.map(r => row([[`${r.events}건`], [r.reasonCode ? `${r.action} · ${r.reasonCode}` : r.action], mark(r.matches)])));
+      put('#revocation', el('p', s.revocation.status === 'not_connected' ? '미연결' : s.revocation.status, 'na'), el('p', s.revocation.note));
+      put('#restore', el('p', `복구 경로 ${s.restore.restoreRoute ?? '없음'}`),
+        el('p', `정책 사본 버전 ${s.restore.policyVersion} · 지문 ${s.restore.policyFingerprint} · 지문 검증 ${s.restore.policyVerified ? '통과' : '실패'}`, s.restore.policyVerified ? 'ok' : 'bad'),
+        el('p', `내 메모 사본 ${s.restore.ownBackups}건 (${sources[s.restore.source]})`));
+      put('#device', el('p', `${deviceNames[s.device.state] ?? '알 수 없음'} (${sources[s.device.source]})`));
+      board.hidden = false;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorBox.hidden = true;
+      const email = form.elements.email.value.trim();
+      const password = form.elements.password.value;
+      form.elements.password.value = '';
+      try {
+        const login = await fetch('/api/auth/login', {
+          method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!login.ok) throw new Error('로그인에 실패했습니다.');
+        const { access_token: token } = await login.json();
+        const response = await fetch('/api/ops/summary', { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) throw new Error('작전 현황을 가져오지 못했습니다.');
+        show(await response.json());
+        form.hidden = true;
+      } catch (error) {
+        board.hidden = true;
+        errorBox.textContent = error.message;
+        errorBox.hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>

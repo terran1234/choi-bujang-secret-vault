@@ -6,7 +6,8 @@
     "DELETE /api/notes/:id",
     "POST /api/restore/notes/:id",
     "POST /api/device/request",
-    "GET /api/device/status"
+    "GET /api/device/status",
+    "GET /api/ops/summary"
   ],
   "restoreRoute": "POST /api/restore/notes/:id",
   "ruleIds": [
@@ -30,7 +31,10 @@
     "device": [
       "POST /device/request",
       "GET /device/status"
+    ],
+    "ops": [
+      "GET /ops/summary"
     ]
   },
-  "sha256": "fd7b992921e4d0b5f75e9f68a620ddabc7695c281095835d7c0828a73daadf93"
+  "sha256": "b2d57a1c357dae6309270f2a9b332fd60c9002ea7b2533902656e66f74595775"
 }

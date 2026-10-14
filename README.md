@@ -1,4 +1,4 @@
-# BYTE BACK 방어전 · 자료실 (11단계 저장점)
+# BYTE BACK 방어전 · 자료실 (12단계 저장점)
 
 이 저장소는 방어전 시작 틀에서 만든 학생의 자료실입니다. 들어 있는 메모는 모두 가상 자료이고, 실제 개인정보·비밀번호·키는 넣지 않습니다.
 
@@ -14,7 +14,8 @@
 - **8단계**: 자료를 구역으로 나눴습니다. 판정기에 `resource_zone` 규칙을 더했고, 자료 API는 자원 ID(`note:<id>`)를 머리글 `X-Resource-Id`로 붙이고 거부 사유를 짧게 서버 로그에 남깁니다.
 - **9단계**: `src/detect.mjs`의 `detect(events)`에 `burst_read` 규칙을 넣었습니다. 같은 가명 사용자(`identity.sub`)의 GET 조회가 어느 10분 구간에서든 120건을 넘으면 `{action:"propose_revocation", reasonCode:"burst_read", subject}`를 돌려주고, 아니면 `{action:"observe"}`를 돌려줍니다.
 - **10단계**: 백업에서 되살리는 길을 만들었습니다. 정책 사본(`policy/safe-policy.json`)과 현재 정책의 차이를 보여 주고 사본대로 되돌리는 명령, 그리고 비공개 메모 사본에서 한 건만 되살리는 복구 경로 `POST /api/restore/notes/:id`입니다.
-- **11단계 (현재)**: 자료실을 설치형 웹앱 화면으로 다듬고(`public/manifest.webmanifest`, `public/icon.svg`, 오프라인 안내) 기기 승인 흐름을 붙였습니다. 승인 전에는 화면이 자료를 요청하지 않습니다.
+- **11단계**: 자료실을 설치형 웹앱 화면으로 다듬고(`public/manifest.webmanifest`, `public/icon.svg`, 오프라인 안내) 기기 승인 흐름을 붙였습니다. 승인 전에는 화면이 자료를 요청하지 않습니다.
+- **12단계 (현재)**: 탈환 작전실(`/ops.html`)과 1~11단계 정상·금지 요청 실측 표(`npm run ops:report`), 설치·실행·중지·복구 안내를 만들었습니다.
 
 ## 지금 작동하는 기능
 
@@ -55,6 +56,22 @@
     - **승인 전에는 자료가 없습니다**: 화면은 상태가 `approved`일 때만 `/api/notes`를 부르고 메모 추가 칸도 그때만 보입니다. 승인되지 않은 동안에는 「기기가 승인되기 전에는 자료를 볼 수 없습니다」만 보입니다. 이 차단은 **화면의 흐름**이고, 서버 쪽 최종 차단은 운영 엔진의 릴레이와 판정기(`deviceRegistered`)가 맡습니다. 자료 API(`/api/notes*`)는 바꾸지 않았습니다.
     - **표 준비(Supabase SQL 편집기)**: `device_approvals(device_hash text 기본키, owner_id uuid, status text 기본값 'pending', created_at timestamptz 기본값 now())`를 만들고 RLS를 켠 채 `anon`·`authenticated`·`PUBLIC` 권한을 모두 회수합니다. 승인은 `update public.device_approvals set status = 'approved' where device_hash = '…'` 로 합니다.
     - **경로**: `POST /api/device/request`, `GET /api/device/status`(`allowedRoutes`와 판정기 구역 `device`에 적음). 정책 사본(`policy/safe-policy.json`)은 이 변경을 반영해 새로 만들었습니다.
+13. **탈환 작전실(12단계)**
+    - **화면**: `/ops.html`(첫 화면의 「탈환 작전실 보기」 링크). 로그인하면 `GET /api/ops/summary`가 돌려준 판정기 규칙, 판정기 가상 요청 6건의 기대·실제 결과, 탐지 사건(120건은 `observe`, 121건은 `propose_revocation`), 회수 상태, 복구 버전(정책 사본 지문 검증, 내 메모 사본 건수), 이 기기의 승인 상태를 보여 줍니다. 값은 서버가 방금 계산했거나 DB에서 센 것이고 화면에 출처를 적습니다. 가상 메모 본문·토큰·기기 식별값은 싣지 않습니다. **화면의 문구는 통과 근거가 아닙니다.**
+    - **회수 상태는 「미연결」**: 회수 집행은 운영 엔진 몫이라 이 저장소는 제안만 만듭니다.
+    - **화면과 서버 기록 대조**: 같은 수치(판정기 일치 건수, 탐지 일치 건수, 사본 건수, 기기 상태)를 서버 로그에 `ops_summary` 한 줄로도 남깁니다(비밀값 없음).
+    - **실측 표**: `npm run ops:report`가 1~12단계의 정상·금지 요청을 배포 주소에 실제로 보내고 단계·종류·요청·기대·실제·요청 ID(`x-vercel-id`)·확인 시각·결과를 한 표로 출력하며 `artifacts/ops-report.json`(Git에 올리지 않음)에도 씁니다. 로그인이 필요한 줄은 환경변수 `OPS_TOKEN_A`(내 계정)와 `OPS_TOKEN_B`(다른 시험 계정)의 로그인 증표가 있을 때만 보내고, 없으면 「미실행」입니다. 증표 값은 표나 파일에 쓰지 않습니다. 41종 공격 시험은 심판이 실행하므로 이 표에서 통과 처리하지 않습니다.
+    - **경로**: `GET /api/ops/summary`(`allowedRoutes`와 판정기 구역 `ops`에 적음). 정책 사본은 이 변경을 반영해 새로 만들었습니다.
+
+## 설치·실행·중지·복구 안내 (이 README가 들어 있는 커밋 기준)
+
+**누가 만들었나**: 판정기(`src/decider.mjs`), 탐지 규칙(`src/detect.mjs`), 자료실 화면·서버 함수(`public/`, `api/`, `src/notes-api.mjs` 등), 접속 앱 설정과 기기 승인(`public/manifest.webmanifest`, `api/device/`), 복구(`api/restore/`, `scripts/policy-restore.mjs`), 탈환 작전실(`public/ops.html`, `api/ops/`)은 학생 몫입니다. 요청·응답 계약과 심판·반 엔진은 **ALEPH SDP 엔진**(제공 엔진)을 사용했고 학생이 만든 것이 아닙니다. 시작 틀의 `scripts/decider-test.mjs`, `scripts/detect-test.mjs`, `scripts/fixture-7.mjs`, `src/verify-login.mjs`, `src/attack-check.mjs`의 기본 틀과 `docs/` 계약 문서도 시작 틀에서 받았습니다. 비밀값은 이 저장소에 없습니다.
+
+1. **설치**: Node.js 22 이상에서 `npm install`.
+2. **로컬 실행·확인**: `npm run build -- --local`(공개 파일 준비), `npm run decider:test`, `npm run detect:test`, `node --experimental-test-module-mocks --test test/restore.test.mjs test/device.test.mjs test/ops.test.mjs test/owner-isolation.test.mjs test/auth-api.test.mjs`. 서버 함수는 Vercel에서 돌고, 로컬에는 서버 함수를 띄우는 명령이 없습니다.
+3. **배포(실행)**: `main`에 push하면 Vercel이 자동 배포합니다. 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY`는 Vercel 프로젝트 설정에 직접 입력합니다. Supabase에는 `notes`, `notes_backup`, `device_approvals` 표가 필요하고(11단계·10단계 항목 참고) 세 표 모두 `anon`·`authenticated`·`PUBLIC` 권한을 회수한 상태입니다.
+4. **중지**: 서비스를 멈추려면 Vercel 프로젝트에서 배포를 내리거나(Settings의 삭제·비활성), Supabase 프로젝트를 일시 정지(Pause project)합니다. 일시 정지 중에는 로그인과 자료가 동작하지 않습니다. 개별 기기는 `device_approvals`의 `status`를 `revoked`로 바꿔 막습니다.
+5. **복구**: 정책은 `npm run policy:diff` → `npm run policy:restore -- --apply`, 메모 한 건은 `POST /api/restore/notes/:id`, 침해 전 사본은 `node scripts/backup-notes.mjs`로 만들어 둡니다(10단계 항목 참고). 복구 뒤에는 `npm run ops:report`로 1~12단계 요청을 다시 보내 표로 확인합니다.
 
 ## 확인 절차
 
@@ -79,6 +96,8 @@
     7. 실제 배포에서 복구 경로를 호출하는 시험과 `notes_backup` 테이블 준비는 **미실행**입니다.
 
 11. 11단계: `node --experimental-test-module-mocks --test test/device.test.mjs`에서 승인 전 none·pending, 서버 표가 승인으로 바뀐 뒤에만 approved, 다른 사용자·쿠키 없음은 승인 아님, 화면에 저장소·기기 키 코드 없음이 통과해야 합니다(가짜 DB 시험). 실제 배포에서 `device_approvals` 표를 만들고 기기를 승인해 화면이 열리는지는 **미실행**입니다.
+
+12. 12단계: `npm run ops:report`를 실행해 표를 확인합니다. 로그인이 필요한 줄은 증표 환경변수가 없으면 「미실행」으로 남습니다. 작전실 화면 `/ops.html`의 수치는 서버 로그의 `ops_summary` 줄과 같아야 합니다. 41종 공격 시험은 **미실행**(심판 몫)입니다.
 
 검색 결과와 남은 약점은 각각 따로 기록합니다.
 
