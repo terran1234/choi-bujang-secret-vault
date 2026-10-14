@@ -86,10 +86,10 @@ test('사용자당 기기 수 상한이 있다', async () => {
   assert.equal((await call(requestRoute, 'POST', 'A')).status, 429);
 });
 
-test('화면 파일: manifest 연결, 기기 키 저장 없음, 승인 전 자료 요청 없음', async () => {
+test('화면 파일: manifest 연결, 브라우저 저장소·기기 키 코드 없음, 승인 전 자료 요청 없음', async () => {
   const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
   assert.match(html, /rel="manifest" href="\/manifest\.webmanifest"/u);
-  assert.ok(!/localStorage|indexedDB|bb_device|document\.cookie/u.test(html));
+  assert.ok(!/localStorage|sessionStorage|indexedDB|bb_device|document\.cookie|기기 키/u.test(html));
   assert.match(html, /device !== 'approved'/u);
   const manifest = JSON.parse(await readFile(new URL('../public/manifest.webmanifest', import.meta.url), 'utf8'));
   assert.equal(manifest.display, 'standalone');

@@ -75,13 +75,10 @@
   </main>
   <script type="module">
     // 이 화면에는 저장소 주소나 키가 없습니다. 모든 요청은 같은 사이트의 서버 함수(/api/…)로만 보냅니다.
-    const STORE = 'byteback.session';
+    // 로그인 증표는 이 페이지의 메모리에만 둡니다. 브라우저 저장소에는 아무것도 넣지 않으므로
+    // 새로고침하거나 창을 닫으면 다시 로그인해야 합니다.
     let session = null;
-    try { const saved = JSON.parse(sessionStorage.getItem(STORE)); if (saved?.access_token) session = saved; } catch { /* 저장분 없음 */ }
-    function keep(next) {
-      session = next;
-      try { next ? sessionStorage.setItem(STORE, JSON.stringify(next)) : sessionStorage.removeItem(STORE); } catch { /* 저장 불가 */ }
-    }
+    function keep(next) { session = next; }
 
     const form = document.querySelector('#login-form');
     const signedIn = document.querySelector('#signed-in');
@@ -94,7 +91,7 @@
     const deviceRequest = document.querySelector('#device-request');
     const offline = document.querySelector('#offline');
 
-    // 기기 승인 상태는 서버가 알려 주는 값만 씁니다(none | pending | approved | revoked). 기기 키는 이 화면에 없습니다.
+    // 기기 승인 상태는 서버가 알려 주는 값만 씁니다(none | pending | approved | revoked).
     let device = 'unknown';
     const deviceText = {
       unknown: '기기 승인 상태를 확인하는 중입니다.',
