@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5, 6].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6, 7].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -142,6 +142,22 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'unregistered_device_local_decider',
         expected: '미등록 기기의 가상 요청은 deny·device_not_registered, 등록 기기는 allow',
         observed: `내 컴퓨터 판정기 연습: 미등록 ${text(unregistered)}, 값 없음 ${text(missing)}, 등록 ${text(registered)} (심판 판정 아님)` });
+    }
+    if (config.step >= 7) {
+      // 7단계: 판정기에 가상 사건을 직접 넣어 봅니다(내 컴퓨터 연습이며 심판 판정이 아닙니다).
+      const { decide } = await import('./decider.mjs');
+      const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
+      const { normal, suspicious } = fixtureRequests();
+      const ordinary = await decide(normal);
+      const unusual = await decide(suspicious);
+      const noSource = await decide({ ...suspicious, signals: { source: 'none', region: 'unknown', network: 'unknown', hour: 3 } });
+      const text = r => `${r.decision}·${r.reasonCode}`;
+      attempts.push({ attackId: 'unusual_access_local_decider',
+        expected: '복합 이상 사건은 step_up, 정상 사건은 allow, 출처 없는 신호는 이상으로 취급하지 않음',
+        observed: `내 컴퓨터 판정기 연습: 정상 ${text(ordinary)}, 복합 이상 ${text(unusual)}, 출처 없는 신호 ${text(noSource)} (심판 판정 아님)` });
+      attempts.push({ attackId: 'relogin_gate_real_data',
+        expected: '다시 로그인 확인 전 실제 자료가 막힘',
+        observed: '미실행: 엔진이 새 로그인 시각을 확인해 주는 계약이 없어 실제 자료 차단은 시험하지 못함' });
     }
     return attempts;
   }

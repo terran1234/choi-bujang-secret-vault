@@ -1,4 +1,4 @@
-# BYTE BACK 방어전 · 자료실 (6단계 저장점)
+# BYTE BACK 방어전 · 자료실 (7단계 저장점)
 
 이 저장소는 방어전 시작 틀에서 만든 학생의 자료실입니다. 들어 있는 메모는 모두 가상 자료이고, 실제 개인정보·비밀번호·키는 넣지 않습니다.
 
@@ -9,7 +9,8 @@
 - **3단계**: Supabase Auth 이메일 로그인·로그아웃을 붙이고, 서버가 로그인 증표(토큰)를 직접 검사합니다.
 - **4단계**: 서버가 검증한 사용자와 메모의 `owner_id`를 비교해 본인 메모만 읽기·추가·수정·삭제하게 했습니다.
 - **5단계**: 자료 요청을 서버 한곳으로 모았습니다. 화면은 저장소 주소와 키 없이 서버 함수만 부르고, 자료 테이블의 직접 접근 권한을 회수했습니다.
-- **6단계 (현재)**: 판정기(`src/decider.mjs`)에 `device_registered` 규칙을 넣었습니다. 요청의 `deviceRegistered`가 `true`일 때만 허용하고, 미등록이거나 값이 없으면 `deny`와 이유 코드 `device_not_registered`로 거부합니다.
+- **6단계**: 판정기(`src/decider.mjs`)에 `device_registered` 규칙을 넣었습니다. 요청의 `deviceRegistered`가 `true`일 때만 허용하고, 미등록이거나 값이 없으면 `deny`와 이유 코드 `device_not_registered`로 거부합니다.
+- **7단계 (현재)**: 판정기에 `step_up_required` 규칙을 더했습니다. 처음 보는 네트워크(`unusual`)에서 평소와 다른 시각(23시~5시)에 최근 위험 사건이 10회 이상 쌓인 복합 사건은 `step_up`(추가 확인)으로 보내고, 정상 사건은 허용합니다. 지역 하나만으로는 판단하지 않습니다.
 
 ## 지금 작동하는 기능
 
@@ -32,6 +33,8 @@
 
 7. **판정기(6단계)**: `decide(request)`는 `request.deviceRegistered === true`일 때만 `allow`(이유 `approved`), 아니면 `deny`(이유 `device_not_registered`)를 돌려줍니다. 규칙 ID는 `device_registered`입니다.
 
+8. **판정기(7단계)**: `signals.source`가 `judge_fixture`이고 `network`·`hour` 모양이 맞을 때만 신호를 읽습니다(출처가 `none`이거나 값이 없으면 정상값으로 채우지 않고 신호 없음). 이미 재확인된 요청(`stepUp.verified`가 true, 나이 0~900초)은 다시 보내지 않고 허용합니다. 규칙 ID는 `step_up_required`, 이유 코드도 `step_up_required`입니다. 엔진이 새 로그인 시각을 확인해 주는 계약은 `docs/DECIDER_REQUEST.md`에 `stepUp` 항목뿐이라, 실제 자료 차단·재로그인 뒤 허용은 **미실행**입니다.
+
 ## 확인 절차
 
 1. 최신 GitHub 파일에서 가상 메모 문장 검색: 저장소 폴더에서 `git grep -n "실습용 가[상]"`을 실행합니다. 결과가 없어야 합니다.
@@ -41,6 +44,7 @@
 5. 공개 키로 원본 자료 API(`originalApiUrl`)를 직접 읽기·추가·수정·삭제하면 모두 `permission denied`(42501)여야 합니다.
 
 6. 6단계: `npm run decider:test`를 실행합니다. 「등록 기기의 정상 요청」은 통과(allow), 「미등록 기기의 가상 요청」은 deny·`device_not_registered`로 나와야 합니다. 이 시험은 가상 요청 연습이며 심판 판정이 아닙니다. 미등록 기기 공격은 심판이 시험합니다.
+7. 7단계: `npm run decider:test`에서 4건(등록 정상 통과, 미등록 거부, 복합 이상 접속은 추가 확인, 다시 확인한 복합 이상 접속은 허용)이 모두 통과해야 합니다. `npm run fixture:7`은 정상 allow, 복합 이상 step_up을 보여 줍니다. 가상 요청 연습이며 심판 판정이 아닙니다.
 
 검색 결과와 남은 약점은 각각 따로 기록합니다.
 
