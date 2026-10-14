@@ -155,9 +155,6 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'unusual_access_local_decider',
         expected: '복합 이상 사건은 step_up, 정상 사건은 allow, 출처 없는 신호는 이상으로 취급하지 않음',
         observed: `내 컴퓨터 판정기 연습: 정상 ${text(ordinary)}, 복합 이상 ${text(unusual)}, 출처 없는 신호 ${text(noSource)} (심판 판정 아님)` });
-      attempts.push({ attackId: 'relogin_gate_real_data',
-        expected: '다시 로그인 확인 전 실제 자료가 막힘',
-        observed: '미실행: 엔진이 새 로그인 시각을 확인해 주는 계약이 없어 실제 자료 차단은 시험하지 못함' });
     }
     if (config.step >= 8) {
       // 8단계: 판정기에 구역별 가상 요청을 직접 넣어 봅니다(내 컴퓨터 연습이며 심판 판정이 아닙니다).
@@ -168,9 +165,6 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'zone_rules_local_decider',
         expected: '자기 메모 한 건 읽기는 allow, 메모 전체 목록·공지 쓰기·강사 자료는 deny',
         observed: `내 컴퓨터 판정기 연습: 메모 한 건 ${await ask({})}, 메모 목록 ${await ask({ route: 'GET /notes' })}, 공지 수정 ${await ask({ service: 'announcements', method: 'PUT', route: 'PUT /announcements/:id' })}, 강사 자료 ${await ask({ service: 'instructor', route: 'GET /instructor/:id' })} (심판 판정 아님)` });
-      attempts.push({ attackId: 'zone_other_user_note_api',
-        expected: '다른 사람의 메모를 API로 조회·수정하면 거부됨',
-        observed: '미실행: 실제 배포에 A/B 로그인 정보가 없어 보내지 않음. 가짜 DB 단위 시험(test/owner-isolation.test.mjs)으로만 확인' });
     }
     if (config.step >= 9) {
       // 9단계: 탐지 함수에 가상 조회 사건을 직접 넣어 봅니다(내 컴퓨터 연습이며 실제 회수나 심판 판정이 아닙니다).
@@ -183,9 +177,6 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'burst_read_local_detect',
         expected: '10분 안 121건 조회는 propose_revocation, 정확히 120건과 느린 조회는 observe',
         observed: `내 컴퓨터 탐지 연습: 121건 ${text(detect(reads(121, 2)))}, 120건 ${text(detect(reads(120, 2)))}, 느린 200건 ${text(detect(reads(200, 7)))} (실제 회수 아님)` });
-      attempts.push({ attackId: 'revocation_enforcement_real',
-        expected: '회수 제안 뒤 실제로 접속 권한이 거둬짐',
-        observed: '미실행: 회수 집행은 운영 엔진 몫이라 이 저장소에서 연결·시험하지 못함' });
     }
     if (config.step >= 10) {
       // 10단계: 정책 사본 검증과 복구 경로 모양을 확인합니다(실제 복구 호출은 하지 않습니다).
@@ -200,9 +191,11 @@ export async function runAttackChecks(config) {
       }
       attempts.push({ attackId: 'policy_snapshot_verified',
         expected: '검증된 정책 사본이 있고 현재 정책과의 차이를 계산할 수 있음', observed: policyResult });
-      attempts.push({ attackId: 'restore_route_real',
-        expected: '변조·삭제된 B의 메모를 복구 경로로 한 건만 되살리고 A 자료는 그대로임',
-        observed: `미실행: 실제 배포의 notes_backup 준비와 A/B 로그인 정보가 없어 보내지 않음. 가짜 DB 시험(test/restore.test.mjs)으로만 확인. 경로 ${config.restoreRoute ?? '없음'}` });
+    }
+    if (config.step >= 10) {
+      attempts.push({ attackId: 'not_run_real_checks',
+        expected: '실제 배포에서 재로그인 차단, 다른 사람 메모 접근, 회수 집행, 메모 복구 호출이 모두 거부·성공 기대대로 동작함',
+        observed: `미실행: 실제 배포에 A/B 로그인 정보와 notes_backup 테이블이 없고 회수 집행은 운영 엔진 몫이라 보내지 않음. 가짜 DB 시험(test/owner-isolation.test.mjs, test/restore.test.mjs)과 로컬 판정기·탐지 연습으로만 확인. 복구 경로 ${config.restoreRoute ?? '없음'}` });
     }
     return attempts;
   }
