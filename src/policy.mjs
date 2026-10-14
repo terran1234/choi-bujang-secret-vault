@@ -1,9 +1,10 @@
 // 10단계: 안전 정책 사본(policy/safe-policy.json)을 검증하고 현재 시험 정책과의 차이만 계산합니다.
 // 정책 = 허용 경로(aleph.config.json), 판정기 규칙 이름과 구역 표(src/decider.mjs). 비밀값은 들어 있지 않습니다.
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { sha256 } from './backup.mjs';
 
 const root = new URL('../', import.meta.url);
+const readFile = async (path, encoding) => readFileSync(path, encoding);
 
 export async function currentPolicy() {
   const config = JSON.parse(await readFile(new URL('aleph.config.json', root), 'utf8'));

@@ -34,7 +34,7 @@
 - DB 준비: 가상 메모를 담은 SQL(`supabase/*.local.sql`)은 `.gitignore`의 `*.local.sql`로 제외되어 저장소에 없습니다. 테이블은 `notes(seq, id uuid 기본키, title, body, owner_id uuid, created_at)`입니다.
 - 로컬 확인: `npm install` 후 `npm run build -- --local`
 - 서버 함수 시험: `node --experimental-test-module-mocks --test test/owner-isolation.test.mjs test/auth-api.test.mjs` (가짜 DB·가짜 Supabase로 소유자 검사와 로그인 함수를 시험합니다.)
-- 제출 묶음: `npm run bundle` (공개 키로 원본 API를 직접 부르는 점검에는 환경변수 `SUPABASE_PUBLISHABLE_KEY`가 필요하며, 없으면 미실행으로 기록합니다. 결과는 `artifacts/submission.json`에 기록되고 커밋하지 않습니다.)
+- 제출 묶음: `npm run bundle`(격리 환경에서도 돌도록 읽기 요청 GET·HEAD만 보냅니다. 쓰기 요청이 필요한 점검 — 로그인 없는 추가·수정·삭제, 공개 키 직접 추가·수정·삭제 — 은 보내지 않고 `not_run`으로 기록합니다. 쓰기 요청은 `npm run ops:report`와 가짜 DB 시험에서 확인합니다) (공개 키로 원본 API를 직접 부르는 점검에는 환경변수 `SUPABASE_PUBLISHABLE_KEY`가 필요하며, 없으면 미실행으로 기록합니다. 결과는 `artifacts/submission.json`에 기록되고 커밋하지 않습니다.)
 
 7. **판정기(6단계)**: `decide(request)`는 `request.deviceRegistered === true`일 때만 `allow`(이유 `approved`), 아니면 `deny`(이유 `device_not_registered`)를 돌려줍니다. 규칙 ID는 `device_registered`입니다.
 

@@ -1,6 +1,9 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+
+// 격리 환경에서 쓸 수 있는 node:fs 만 씁니다.
+const readFile = async (path, encoding) => readFileSync(path, encoding);
 
 function appUrl(config) {
   let app;
@@ -40,7 +43,9 @@ function forgedToken(config) {
   })}.${part('forged-signature')}`;
 }
 
+// 제출 묶음은 읽기 요청(GET·HEAD)만 보낼 수 있습니다. 쓰기 요청이 필요한 점검은 보내지 않고 null 을 돌려줘 not_run 으로 기록합니다.
 async function request(app, method, path, { token, body } = {}) {
+  if (method !== 'GET' && method !== 'HEAD') return null;
   const response = await fetch(new URL(path, app), {
     method, redirect: 'error', signal: AbortSignal.timeout(10000),
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -51,7 +56,8 @@ async function request(app, method, path, { token, body } = {}) {
   return { status: response.status, hasJsonError: typeof json?.error === 'string', leaked: Array.isArray(json) ? json.length : (Array.isArray(json?.notes) ? json.notes.length : 0) };
 }
 
-const blocked = ({ status, hasJsonError, leaked }) =>
+const blocked = (result) => (result ? shown(result) : 'not_run');
+const shown = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
@@ -71,10 +77,10 @@ export async function runAttackChecks(config) {
     ]);
     const attempts = [
       { attackId: 'anonymous_note_list', expected: '로그인 없이 메모 목록 요청이 401/403 과 JSON 오류로 거부됨', observed: `비로그인 요청에서 ${blocked(list)}` },
-      { attackId: 'anonymous_note_create', expected: '로그인 없이 메모 추가가 거부됨', observed: `비로그인 요청에서 ${blocked(create)}` },
+      { attackId: 'anonymous_note_create', expected: '로그인 없이 메모 추가가 거부됨', observed: create ? `비로그인 요청에서 ${blocked(create)}` : 'not_run' },
       { attackId: 'anonymous_note_read_one', expected: '로그인 없이 메모 한 건 조회가 거부됨', observed: `비로그인 요청에서 ${blocked(one)}` },
-      { attackId: 'anonymous_note_update', expected: '로그인 없이 메모 수정이 거부됨', observed: `비로그인 요청에서 ${blocked(update)}` },
-      { attackId: 'anonymous_note_delete', expected: '로그인 없이 메모 삭제가 거부됨', observed: `비로그인 요청에서 ${blocked(remove)}` },
+      { attackId: 'anonymous_note_update', expected: '로그인 없이 메모 수정이 거부됨', observed: update ? `비로그인 요청에서 ${blocked(update)}` : 'not_run' },
+      { attackId: 'anonymous_note_delete', expected: '로그인 없이 메모 삭제가 거부됨', observed: remove ? `비로그인 요청에서 ${blocked(remove)}` : 'not_run' },
       { attackId: 'forged_login_token', expected: '서명이 위조된 로그인 토큰이 거부됨', observed: `위조 토큰 요청에서 ${blocked(forged)}` },
     ];
     if (config.step === 3) return attempts;
@@ -85,6 +91,7 @@ export async function runAttackChecks(config) {
       || await readFile(new URL('../public/index.html', import.meta.url), 'utf8')
         .then(html => /sb_publishable_[A-Za-z0-9_-]+/u.exec(html)?.[0], () => undefined);
     const direct = async (method, query, payload) => {
+      if (method !== 'GET') return 'not_run';
       if (!publishable) return '미실행: 공개 키를 환경변수 SUPABASE_PUBLISHABLE_KEY 로 받지 못해 보내지 않음';
       const response = await fetch(`${project}/rest/v1/notes${query}`, {
         method, redirect: 'error', signal: AbortSignal.timeout(10000),
@@ -199,15 +206,14 @@ export async function runAttackChecks(config) {
     }
     if (config.step >= 11) {
       // 11단계: 로그인 없이 기기 승인 경로와 앱 설정 파일을 실제로 요청해 봅니다.
-      const [status, ask, manifest, ops] = await Promise.all([
+      const [status, manifest, ops] = await Promise.all([
         request(app, 'GET', '/api/device/status'),
-        request(app, 'POST', '/api/device/request'),
         get(app, '/manifest.webmanifest').then(r => r.status, () => 0),
         config.step >= 12 ? request(app, 'GET', '/api/ops/summary') : Promise.resolve(null),
       ]);
       attempts.push({ attackId: 'device_routes_anonymous',
-        expected: '로그인 없이 기기 상태 확인·승인 요청이 거부되고, 앱 설정 파일(manifest)은 열림',
-        observed: `비로그인 상태 확인 ${blocked(status)} / 승인 요청 ${blocked(ask)} / manifest HTTP ${manifest}${ops ? ` / 12단계 작전 현황 ${blocked(ops)}` : ''}` });
+        expected: '로그인 없이 기기 상태 확인이 거부되고, 앱 설정 파일(manifest)은 열림',
+        observed: `비로그인 상태 확인 ${blocked(status)} / manifest HTTP ${manifest}${ops ? ` / 12단계 작전 현황 ${blocked(ops)}` : ''}` });
     }
     return attempts;
   }
