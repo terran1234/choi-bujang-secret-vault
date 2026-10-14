@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -195,7 +195,18 @@ export async function runAttackChecks(config) {
     if (config.step >= 10) {
       attempts.push({ attackId: 'not_run_real_checks',
         expected: '실제 배포에서 재로그인 차단, 다른 사람 메모 접근, 회수 집행, 메모 복구 호출이 모두 거부·성공 기대대로 동작함',
-        observed: `미실행: 실제 배포에 A/B 로그인 정보와 notes_backup 테이블이 없고 회수 집행은 운영 엔진 몫이라 보내지 않음. 가짜 DB 시험(test/owner-isolation.test.mjs, test/restore.test.mjs)과 로컬 판정기·탐지 연습으로만 확인. 복구 경로 ${config.restoreRoute ?? '없음'}` });
+        observed: `미실행: 실제 배포에 A/B 로그인 정보가 없고 기기 승인 상태 시험을 하지 못했고 회수 집행은 운영 엔진 몫이라 보내지 않음. 가짜 DB 시험(test/owner-isolation.test.mjs, test/restore.test.mjs, test/device.test.mjs)과 로컬 판정기·탐지 연습으로만 확인. 복구 경로 ${config.restoreRoute ?? '없음'}` });
+    }
+    if (config.step >= 11) {
+      // 11단계: 로그인 없이 기기 승인 경로와 앱 설정 파일을 실제로 요청해 봅니다.
+      const [status, ask, manifest] = await Promise.all([
+        request(app, 'GET', '/api/device/status'),
+        request(app, 'POST', '/api/device/request'),
+        get(app, '/manifest.webmanifest').then(r => r.status, () => 0),
+      ]);
+      attempts.push({ attackId: 'device_routes_anonymous',
+        expected: '로그인 없이 기기 상태 확인·승인 요청이 거부되고, 앱 설정 파일(manifest)은 열림',
+        observed: `비로그인 상태 확인 ${blocked(status)} / 승인 요청 ${blocked(ask)} / manifest HTTP ${manifest}` });
     }
     return attempts;
   }

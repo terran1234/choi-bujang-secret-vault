@@ -4,7 +4,9 @@
     "GET /api/notes/:id",
     "PUT /api/notes/:id",
     "DELETE /api/notes/:id",
-    "POST /api/restore/notes/:id"
+    "POST /api/restore/notes/:id",
+    "POST /api/device/request",
+    "GET /api/device/status"
   ],
   "restoreRoute": "POST /api/restore/notes/:id",
   "ruleIds": [
@@ -24,7 +26,11 @@
     ],
     "restore": [
       "POST /restore/notes/:id"
+    ],
+    "device": [
+      "POST /device/request",
+      "GET /device/status"
     ]
   },
-  "sha256": "d7032b8401ca2572e064baf3e7ed12801054c411ebba00c1021dfdb327b072a0"
+  "sha256": "fd7b992921e4d0b5f75e9f68a620ddabc7695c281095835d7c0828a73daadf93"
 }

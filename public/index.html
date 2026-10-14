@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BYTE BACK | 점령된 자료실</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#101a28">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="자료실">
   <style>
     :root { color-scheme: dark; font-family: system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; background: #101a28; color: #ecf4ff; }
@@ -28,12 +33,14 @@
     .row button.danger { border-color: #d07384; color: #ffb4c0; }
     li input { width: 100%; box-sizing: border-box; margin: 4px 0; padding: 8px 10px; border: 1px solid #51667c; border-radius: 8px; background: #101a28; color: #ecf4ff; font-size: 16px; }
     #auth-error { margin: 10px 0 0; color: #ffb4c0; font-size: 15px; }
+    #device-state { margin: 0 0 10px; }
+    #offline { margin: 0 0 18px; padding: 12px 16px; border: 1px solid #d0b073; border-radius: 12px; color: #ffefc9; background: #5c45214a; font-size: 15px; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
-    <div class="eyebrow">BYTE BACK · 5단계 요청을 서버 한곳으로</div>
+    <div class="eyebrow">BYTE BACK · 11단계 나만의 접속 앱</div>
     <h1>자료실</h1>
     <p>아래 기록은 모두 실습을 위해 만든 가상 자료입니다.</p>
 
@@ -48,6 +55,14 @@
         <button id="logout" type="button">로그아웃</button>
       </div>
       <p id="auth-error" role="alert" hidden></p>
+    </section>
+
+    <p id="offline" role="status" hidden>지금 인터넷에 연결되어 있지 않습니다. 이 앱은 자료를 기기에 저장해 두지 않아 연결되기 전에는 자료를 볼 수 없습니다.</p>
+
+    <section class="auth" id="device" aria-live="polite" hidden>
+      <p id="device-state"></p>
+      <button id="device-request" type="button" hidden>이 기기 승인 요청하기</button>
+      <p>앱을 설치했다는 표시만으로는 기기가 확인되지 않습니다. 서버가 이 기기를 승인된 기기로 확인해 줄 때만 자료를 엽니다.</p>
     </section>
 
     <div class="notice">이 화면은 자료 저장소에 직접 붙지 않고, 로그인과 메모 요청 모두 우리 서버 함수만 거칩니다. 가상 메모만 적어 주세요.</div>
@@ -74,6 +89,24 @@
     const errorBox = document.querySelector('#auth-error');
     const noteForm = document.querySelector('#note-form');
     const list = document.querySelector('#notes');
+    const deviceBox = document.querySelector('#device');
+    const deviceMessage = document.querySelector('#device-state');
+    const deviceRequest = document.querySelector('#device-request');
+    const offline = document.querySelector('#offline');
+
+    // 기기 승인 상태는 서버가 알려 주는 값만 씁니다(none | pending | approved | revoked). 기기 키는 이 화면에 없습니다.
+    let device = 'unknown';
+    const deviceText = {
+      unknown: '기기 승인 상태를 확인하는 중입니다.',
+      none: '이 기기는 아직 승인 요청을 하지 않았습니다. 승인 전에는 자료가 표시되지 않습니다.',
+      pending: '승인 대기 중입니다. 자료실 주인이 서버에서 이 기기를 승인하기 전에는 자료가 표시되지 않습니다.',
+      approved: '서버가 이 기기를 승인된 기기로 확인했습니다.',
+      revoked: '이 기기의 승인이 회수되었습니다. 자료가 표시되지 않습니다.',
+    };
+    const syncOffline = () => { offline.hidden = navigator.onLine; };
+    addEventListener('online', syncOffline);
+    addEventListener('offline', syncOffline);
+    syncOffline();
 
     const reasons = {
       INVALID_CREDENTIALS: '이메일 또는 비밀번호가 맞지 않습니다.',
@@ -90,7 +123,10 @@
     function render() {
       form.hidden = Boolean(session);
       signedIn.hidden = !session;
-      noteForm.hidden = !session;
+      noteForm.hidden = !(session && device === 'approved');
+      deviceBox.hidden = !session;
+      deviceMessage.textContent = session ? deviceText[device] ?? deviceText.unknown : '';
+      deviceRequest.hidden = !(session && (device === 'none'));
       who.textContent = session ? (session.email ?? '이름 없는 계정') : '';
       if (session) errorBox.hidden = true;
     }
@@ -176,8 +212,23 @@
       return item;
     }
 
+    // 서버에 이 기기의 승인 상태를 물어 화면에 반영합니다. 승인(approved)이 아니면 자료를 요청하지 않습니다.
+    async function checkDevice() {
+      device = 'unknown';
+      render();
+      try {
+        const result = await api('/api/device/status');
+        device = ['none', 'pending', 'approved', 'revoked'].includes(result?.state) ? result.state : 'none';
+      } catch { device = 'unknown'; }
+      render();
+    }
+
     async function loadNotes() {
       if (!session) { showMessage('로그인하면 가상 자료를 볼 수 있습니다.'); return; }
+      if (device !== 'approved') {
+        showMessage(device === 'unknown' ? '기기 승인 상태를 확인하지 못했습니다. 잠시 뒤 다시 열어 주세요.' : '기기가 승인되기 전에는 자료를 볼 수 없습니다.');
+        return;
+      }
       try {
         const notes = await api('/api/notes');
         if (!Array.isArray(notes)) throw new Error('자료 형식이 맞지 않습니다.');
@@ -202,7 +253,7 @@
           return;
         }
         keep(data);
-        render();
+        await checkDevice();
         await loadNotes();
       } catch {
         showError('로그인에 실패했습니다: 서버에 연결하지 못했습니다.');
@@ -212,6 +263,7 @@
     document.querySelector('#logout').addEventListener('click', async () => {
       const token = session?.access_token;
       keep(null);
+      device = 'unknown';
       render();
       showMessage('로그인하면 가상 자료를 볼 수 있습니다.');
       if (token) { try { await post('/api/auth/logout', {}, token); } catch { /* 화면은 이미 로그아웃됨 */ } }
@@ -229,7 +281,22 @@
       } catch (error) { showMessage(error.message); }
     });
 
+    deviceRequest.addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/device/request', {
+          method: 'POST', cache: 'no-store',
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        if (!response.ok) throw new Error('request failed');
+        const result = await response.json();
+        device = ['pending', 'approved', 'revoked'].includes(result?.state) ? result.state : 'pending';
+        render();
+        await loadNotes();
+      } catch { showError('기기 승인 요청을 보내지 못했습니다. 잠시 뒤 다시 시도해 주세요.'); }
+    });
+
     render();
+    if (session) await checkDevice();
     await loadNotes();
   </script>
 </body>
