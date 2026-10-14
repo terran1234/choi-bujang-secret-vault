@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "allowedRoutes": [
+    "GET /api/notes/:id",
+    "PUT /api/notes/:id",
+    "DELETE /api/notes/:id",
+    "POST /api/restore/notes/:id"
+  ],
+  "restoreRoute": "POST /api/restore/notes/:id",
+  "ruleIds": [
+    "device_registered",
+    "resource_zone",
+    "step_up_required"
+  ],
+  "zones": {
+    "notes": [
+      "GET /notes/:id",
+      "PUT /notes/:id",
+      "DELETE /notes/:id"
+    ],
+    "announcements": [
+      "GET /announcements",
+      "GET /announcements/:id"
+    ],
+    "restore": [
+      "POST /restore/notes/:id"
+    ]
+  },
+  "sha256": "d7032b8401ca2572e064baf3e7ed12801054c411ebba00c1021dfdb327b072a0"
+}

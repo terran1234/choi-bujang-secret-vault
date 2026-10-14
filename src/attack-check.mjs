@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -186,6 +186,23 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'revocation_enforcement_real',
         expected: '회수 제안 뒤 실제로 접속 권한이 거둬짐',
         observed: '미실행: 회수 집행은 운영 엔진 몫이라 이 저장소에서 연결·시험하지 못함' });
+    }
+    if (config.step >= 10) {
+      // 10단계: 정책 사본 검증과 복구 경로 모양을 확인합니다(실제 복구 호출은 하지 않습니다).
+      const { loadVerifiedSnapshot, currentPolicy, diffPolicy } = await import('./policy.mjs');
+      let policyResult;
+      try {
+        const { content } = await loadVerifiedSnapshot();
+        const changes = diffPolicy(content, await currentPolicy());
+        policyResult = `정책 사본 지문 확인됨, 현재 정책과 다른 항목 ${changes.length}개`;
+      } catch (error) {
+        policyResult = `정책 사본 확인 실패: ${error.message}`;
+      }
+      attempts.push({ attackId: 'policy_snapshot_verified',
+        expected: '검증된 정책 사본이 있고 현재 정책과의 차이를 계산할 수 있음', observed: policyResult });
+      attempts.push({ attackId: 'restore_route_real',
+        expected: '변조·삭제된 B의 메모를 복구 경로로 한 건만 되살리고 A 자료는 그대로임',
+        observed: `미실행: 실제 배포의 notes_backup 준비와 A/B 로그인 정보가 없어 보내지 않음. 가짜 DB 시험(test/restore.test.mjs)으로만 확인. 경로 ${config.restoreRoute ?? '없음'}` });
     }
     return attempts;
   }

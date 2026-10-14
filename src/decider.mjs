@@ -15,9 +15,11 @@ const respond = (request, decision, reasonCode, ruleIds) => ({
 // - 반 공지(announcements): 읽기(GET)만. 쓰기는 누구에게나 거부합니다.
 // - 강사 자료(instructor)와 알 수 없는 서비스·경로는 모두 거부합니다.
 // 쿼리로 기능을 고르지 않고(queryLength·querySha256은 읽지 않음), ID 형식은 좁히지 않습니다.
-const ZONES = Object.freeze({
+// - 복구(restore, 10단계): 메모 사본에서 지정한 한 건을 되살리는 POST 한 경로만. 주인·해시 대조는 복구 API가 합니다.
+export const ZONES = Object.freeze({
   notes: ['GET /notes/:id', 'PUT /notes/:id', 'DELETE /notes/:id'],
   announcements: ['GET /announcements', 'GET /announcements/:id'],
+  restore: ['POST /restore/notes/:id'],
 });
 
 function zoneAllowed(request) {

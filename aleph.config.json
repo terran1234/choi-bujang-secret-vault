@@ -1,5 +1,5 @@
 {
-  "step": 9,
+  "step": 10,
   "repoUrl": "https://github.com/terran1234/choi-bujang-secret-vault",
   "publicAppUrl": "https://choi-bujang-secret-vault-wine.vercel.app",
   "sampleMarker": "SAMPLE_NOTE_1",
@@ -12,8 +12,9 @@
   "allowedRoutes": [
     "GET /api/notes/:id",
     "PUT /api/notes/:id",
-    "DELETE /api/notes/:id"
+    "DELETE /api/notes/:id",
+    "POST /api/restore/notes/:id"
   ],
   "originalApiUrl": "https://miwfnbbjzevrdvnamklb.supabase.co/rest/v1/notes",
-  "restoreRoute": null
+  "restoreRoute": "POST /api/restore/notes/:id"
 }
