@@ -55,7 +55,7 @@ const blocked = ({ status, hasJsonError, leaked }) =>
   `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
 
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4, 5].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5, 6].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
@@ -130,6 +130,18 @@ export async function runAttackChecks(config) {
       attempts.push({ attackId: 'published_aleph_json_config',
         expected: '배포된 /aleph.json 에 https originalApiUrl 과 allowedRoutes 가 있음',
         observed: `/aleph.json HTTP ${aleph.status}, originalApiUrl ${original ? '있음' : '없음'}, allowedRoutes ${routes}개` });
+    }
+    if (config.step >= 6) {
+      // 6단계: 판정기에 가상 요청을 직접 넣어 봅니다(심판 판정이 아니라 내 컴퓨터에서 한 연습입니다).
+      const { decide } = await import('./decider.mjs');
+      const base = { requestId: '33333333-3333-4333-8333-333333333333' };
+      const unregistered = await decide({ ...base, deviceRegistered: false });
+      const missing = await decide({ ...base });
+      const registered = await decide({ ...base, deviceRegistered: true });
+      const text = r => `${r.decision}·${r.reasonCode}`;
+      attempts.push({ attackId: 'unregistered_device_local_decider',
+        expected: '미등록 기기의 가상 요청은 deny·device_not_registered, 등록 기기는 allow',
+        observed: `내 컴퓨터 판정기 연습: 미등록 ${text(unregistered)}, 값 없음 ${text(missing)}, 등록 ${text(registered)} (심판 판정 아님)` });
     }
     return attempts;
   }
