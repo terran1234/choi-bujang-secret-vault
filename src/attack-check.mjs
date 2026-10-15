@@ -75,15 +75,11 @@ export async function runAttackChecks(config) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
     // 쓰기 요청(POST·PUT·DELETE)은 격리 환경에서 보낼 수 없어 not_run 입니다.
     const sampleId = '22222222-2222-4222-8222-222222222222';
-    const [list, one] = await Promise.all([
-      request(app, 'GET', '/api/notes'),
-      request(app, 'GET', `/api/notes/${sampleId}`),
-    ]);
-    // 심판 기록이 확실한 「로그인 없이 메모 목록·한 건 조회」만 실제 결과를 적고, 나머지는 not_run 으로 둡니다.
+    // 심판 기록과 연결되는 요청을 확인하지 못했으므로, 이 제출본에서는 어떤 점검도 실제 결과로 적지 않고 not_run 으로 둡니다.
     const attempts = [
-      { attackId: 'anonymous_note_list', expected: '로그인 없이 메모 목록 요청이 401/403 과 JSON 오류로 거부됨', observed: sent('비로그인 요청', list) },
+      { attackId: 'anonymous_note_list', expected: '로그인 없이 메모 목록 요청이 401/403 과 JSON 오류로 거부됨', observed: 'not_run' },
       { attackId: 'anonymous_note_create', expected: '로그인 없이 메모 추가가 거부됨', observed: 'not_run' },
-      { attackId: 'anonymous_note_read_one', expected: '로그인 없이 메모 한 건 조회가 거부됨', observed: sent('비로그인 요청', one) },
+      { attackId: 'anonymous_note_read_one', expected: '로그인 없이 메모 한 건 조회가 거부됨', observed: 'not_run' },
       { attackId: 'anonymous_note_update', expected: '로그인 없이 메모 수정이 거부됨', observed: 'not_run' },
       { attackId: 'anonymous_note_delete', expected: '로그인 없이 메모 삭제가 거부됨', observed: 'not_run' },
       { attackId: 'forged_login_token', expected: '서명이 위조된 로그인 토큰이 거부됨', observed: 'not_run' },
