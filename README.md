@@ -120,6 +120,14 @@
 - **차단·알림 연결**: `npm run xdr:respond`(`xdr/known-cve/respond.mjs`)가 `block`만 만료 시각(1시간)과 근거 경보 번호가 붙은 거부 규칙(`xdr/known-cve/deny-rules.json`)으로 만들고, `block`·`alert`는 `xdr/alerts.log`에 한 줄씩 쌓습니다. 정상 이벤트와 출발 주소가 같으면 규칙을 넣지 않습니다. 이 저장소의 판정기(`src/decider.mjs`)는 요청에 출발 주소를 받지 않아 **직접 연결하지 않았고**, 판정기 앞단이 읽는 입력(`isDenied`)으로 제공합니다. 두 생성 파일은 Git에 올리지 않습니다.
 - **실행·결과**: `npm run xdr:run -- known-cve`가 `xdr/known-cve/result.json`을 만듭니다. 결과는 block 8 · alert 8 · record 8이고 정상 이벤트를 막은 경우는 없습니다. 시험은 `node --test test/xdr-known-cve.test.mjs`입니다. 가상 경보 연습이며 실제 서비스 방어 증거가 아닙니다.
 
+## 보너스: 몰래 심어진 프로그램 탐지 (xdr-04)
+
+- **무엇을 하나**: 경보 파일(`xdr/fixtures/persistence.json`)을 보고, 다시 켜도 남도록 심어 둔 서비스·예약 작업·시작 폴더 프로그램인지 판단합니다. 근거는 MITRE ATT&CK T1543(시스템 프로세스 생성·변경)과 T1053(예약 작업)입니다.
+- **판단기**: `xdr/persistence/decide.mjs`는 다른 파일·패키지를 불러오지 않고 혼자 계산합니다. 경보 수준이 10 이상이고 임시 폴더·시작 폴더 신호나 3건 이상 연속 등록이 있으면 `block`(확신도 0.85 이상), 태그는 있으나 신호가 약한 단발 흔적은 `alert`(0.5 이상 0.85 미만), 태그가 없거나 수준이 5 미만이면 `record`입니다. 패턴 목록과 근거는 `xdr/persistence/patterns.json`에 있습니다.
+- **읽기 확인**: `node xdr/persistence/read-alerts.mjs`가 시각·출발 주소·계정·수준·설명만 뽑습니다(경보 24건, 뽑은 줄 24줄).
+- **차단·알림 연결**: `npm run xdr:respond:persistence`(`xdr/persistence/respond.mjs`)가 `block`만 만료 시각(1시간)과 근거 경보 번호가 붙은 거부 규칙(`xdr/persistence/deny-rules.json`)으로 만들고, `block`·`alert`는 `xdr/alerts.log`에 한 줄씩 쌓습니다. 정상 이벤트와 출발 주소가 같으면 규칙을 넣지 않습니다. 판정기(`src/decider.mjs`)에는 직접 연결하지 않고 `isDenied`로 제공합니다(xdr-03과 같은 이유). 생성 파일은 Git에 올리지 않습니다.
+- **실행·결과**: `npm run xdr:run -- persistence`가 `xdr/persistence/result.json`을 만듭니다. 결과는 block 8 · alert 8 · record 8이고 정상 이벤트를 막은 경우는 없습니다. 시험은 `node --test test/xdr-persistence.test.mjs`입니다. 가상 경보 연습이며 실제 서비스 방어 증거가 아닙니다.
+
 ## 코딩 도구 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽히고 한 번에 한 제작 프롬프트만 요청합니다.

@@ -1,0 +1,42 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "persistence",
+  "basis": ["MITRE ATT&CK T1543", "MITRE ATT&CK T1053"],
+  "patterns": [
+    {
+      "name": "임시폴더_서명없는_서비스",
+      "when": "서명 없는 새 서비스가 임시 폴더(Temp)의 실행 파일을 가리키고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1543 (Create or Modify System Process): 다시 켜도 남도록 서비스로 등록하는 지속 기법"
+    },
+    {
+      "name": "임시폴더_낯선_예약작업",
+      "when": "처음 보는 예약 작업이 임시 폴더(Temp)의 프로그램을 실행하고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1053 (Scheduled Task/Job): 예약 작업으로 반복 실행되도록 심는 지속 기법"
+    },
+    {
+      "name": "시작폴더_낯선_프로그램",
+      "when": "시작 폴더(Startup)에 평소 목록에 없는 프로그램이 추가되고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1543 (경보 태그), 시작 폴더 항목은 T1547.001 (Startup Folder)과 같은 계열의 지속 기법"
+    },
+    {
+      "name": "서명없는_서비스_연속등록",
+      "when": "같은 출발 주소에서 서명 없는 서비스 등록이 3건 이상 연속되고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1543: 반복 등록은 자동화된 지속 기법 설치 시도의 흔적"
+    },
+    {
+      "name": "서비스_실행파일_교체",
+      "when": "서비스 실행 파일이 바뀌었고 서명이 없으며 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1543: 기존 서비스의 실행 파일을 바꿔 악성 파일을 다시 켜도 남게 하는 기법"
+    },
+    {
+      "name": "시작프로그램과_예약작업_동시",
+      "when": "시작 프로그램과 예약 작업이 같은 임시 파일을 함께 가리키고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1543 + T1053: 두 지속 기법을 함께 써 하나가 지워져도 남게 하려는 형태"
+    },
+    {
+      "name": "단발_의심_흔적",
+      "when": "지속 기법 태그(T1543·T1053)는 있으나 수준이 낮거나 임시·시작 폴더 신호가 없는 단발 흔적(알림만, 차단하지 않음)",
+      "evidence": "MITRE ATT&CK T1543/T1053 (판단 보류): 수업용 도구·정상 예약 작업과 구분되지 않는 단발 흔적"
+    }
+  ]
+}
