@@ -1,9 +1,8 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
-import { readFileSync } from 'node:fs';
-
-// 격리 환경에서 쓸 수 있는 node:fs 만 씁니다.
-const readFile = async (path, encoding) => readFileSync(path, encoding);
+// 이 파일은 격리 환경(GET·HEAD 요청, node:fs·path·url·child_process·crypto 만)에서 돕니다.
+// 실제로 보낸 요청의 HTTP 상태와 서버 기록에 연결되는 식별값(x-vercel-id)을 함께 적고,
+// 보내지 않았거나 서버 기록과 연결되지 않은 점검은 observed 를 not_run 으로 둡니다.
 
 function appUrl(config) {
   let app;
@@ -39,79 +38,65 @@ const get = (app, path) => fetch(new URL(path, app), {
 const FORGED_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL21pd2ZuYmJqemV2cmR2bmFta2xiLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJleHAiOjQxMDI0NDQ4MDB9.Zm9yZ2VkLXNpZ25hdHVyZQ';
 const forgedToken = () => FORGED_TOKEN;
 
+// 서버 기록과 연결되는 식별값(Vercel 이 응답에 붙이는 x-vercel-id). 없으면 연결할 수 없는 요청으로 봅니다.
+const linkId = (response) => response.headers.get('x-vercel-id') || null;
+
 // 제출 묶음은 읽기 요청(GET·HEAD)만 보낼 수 있습니다. 쓰기 요청이 필요한 점검은 보내지 않고 null 을 돌려줘 not_run 으로 기록합니다.
-async function request(app, method, path, { token, body } = {}) {
+async function request(app, method, path, { token } = {}) {
   if (method !== 'GET' && method !== 'HEAD') return null;
   const response = await fetch(new URL(path, app), {
     method, redirect: 'error', signal: AbortSignal.timeout(10000),
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   let json = null;
   try { json = await response.json(); } catch { /* HTML이나 빈 응답은 JSON 오류 문구 없음으로 기록합니다. */ }
-  return { status: response.status, hasJsonError: typeof json?.error === 'string', leaked: Array.isArray(json) ? json.length : (Array.isArray(json?.notes) ? json.notes.length : 0) };
+  return {
+    status: response.status, requestId: linkId(response), hasJsonError: typeof json?.error === 'string',
+    leaked: Array.isArray(json) ? json.length : (Array.isArray(json?.notes) ? json.notes.length : 0),
+  };
 }
 
-const blocked = (result) => (result ? shown(result) : 'not_run');
-const shown = ({ status, hasJsonError, leaked }) =>
-  `HTTP ${status}, JSON 오류 문구 ${hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${leaked}건`;
+// 요청을 보냈고 서버 기록과 연결되는 식별값이 있을 때만 결과를 적고, 아니면 not_run 입니다.
+const blocked = (result) => (result?.requestId
+  ? `HTTP ${result.status}, JSON 오류 문구 ${result.hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${result.leaked}건, x-vercel-id ${result.requestId}`
+  : 'not_run');
+const sent = (label, result) => (result?.requestId ? `${label}에서 ${blocked(result)}` : 'not_run');
 
 export async function runAttackChecks(config) {
   if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   const app = appUrl(config);
   if (config.step >= 3) {
     // 3단계: 로그인 없는 요청, 가짜 증표 요청이 자료 없이 거부되는지 직접 요청해 기록합니다.
+    // 쓰기 요청(POST·PUT·DELETE)은 격리 환경에서 보낼 수 없어 not_run 입니다.
     const sampleId = '22222222-2222-4222-8222-222222222222';
-    const note = { title: 'attack-check', body: 'blocked-request-only' };
-    const [list, create, one, update, remove, forged] = await Promise.all([
+    const [list, one, forged] = await Promise.all([
       request(app, 'GET', '/api/notes'),
-      request(app, 'POST', '/api/notes', { body: note }),
       request(app, 'GET', `/api/notes/${sampleId}`),
-      request(app, 'PUT', `/api/notes/${sampleId}`, { body: note }),
-      request(app, 'DELETE', `/api/notes/${sampleId}`),
       request(app, 'GET', '/api/notes', { token: forgedToken(config) }),
     ]);
     const attempts = [
-      { attackId: 'anonymous_note_list', expected: '로그인 없이 메모 목록 요청이 401/403 과 JSON 오류로 거부됨', observed: `비로그인 요청에서 ${blocked(list)}` },
-      { attackId: 'anonymous_note_create', expected: '로그인 없이 메모 추가가 거부됨', observed: create ? `비로그인 요청에서 ${blocked(create)}` : 'not_run' },
-      { attackId: 'anonymous_note_read_one', expected: '로그인 없이 메모 한 건 조회가 거부됨', observed: `비로그인 요청에서 ${blocked(one)}` },
-      { attackId: 'anonymous_note_update', expected: '로그인 없이 메모 수정이 거부됨', observed: update ? `비로그인 요청에서 ${blocked(update)}` : 'not_run' },
-      { attackId: 'anonymous_note_delete', expected: '로그인 없이 메모 삭제가 거부됨', observed: remove ? `비로그인 요청에서 ${blocked(remove)}` : 'not_run' },
-      { attackId: 'forged_login_token', expected: '서명이 위조된 로그인 토큰이 거부됨', observed: `위조 토큰 요청에서 ${blocked(forged)}` },
+      { attackId: 'anonymous_note_list', expected: '로그인 없이 메모 목록 요청이 401/403 과 JSON 오류로 거부됨', observed: sent('비로그인 요청', list) },
+      { attackId: 'anonymous_note_create', expected: '로그인 없이 메모 추가가 거부됨', observed: 'not_run' },
+      { attackId: 'anonymous_note_read_one', expected: '로그인 없이 메모 한 건 조회가 거부됨', observed: sent('비로그인 요청', one) },
+      { attackId: 'anonymous_note_update', expected: '로그인 없이 메모 수정이 거부됨', observed: 'not_run' },
+      { attackId: 'anonymous_note_delete', expected: '로그인 없이 메모 삭제가 거부됨', observed: 'not_run' },
+      { attackId: 'forged_login_token', expected: '서명이 위조된 로그인 토큰이 거부됨', observed: sent('위조 토큰 요청', forged) },
     ];
     if (config.step === 3) return attempts;
-    // 4단계: 공개 키(anon)로 Supabase Data API 를 직접 두드려 읽기·추가·수정·삭제가 모두 거부되는지 기록합니다.
-    const project = new URL(config.identityProvider.issuer).origin;
-    // 5단계부터 화면 코드에는 키가 없으므로, 공개 키는 환경변수 SUPABASE_PUBLISHABLE_KEY 로만 받습니다.
-    const publishable = process.env.SUPABASE_PUBLISHABLE_KEY?.trim()
-      || await readFile(new URL('../public/index.html', import.meta.url), 'utf8')
-        .then(html => /sb_publishable_[A-Za-z0-9_-]+/u.exec(html)?.[0], () => undefined);
-    const direct = async (method, query, payload) => {
-      if (method !== 'GET') return 'not_run';
-      if (!publishable) return '미실행: 공개 키를 환경변수 SUPABASE_PUBLISHABLE_KEY 로 받지 못해 보내지 않음';
-      const response = await fetch(`${project}/rest/v1/notes${query}`, {
-        method, redirect: 'error', signal: AbortSignal.timeout(10000),
-        headers: { apikey: publishable, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
-        ...(payload ? { body: JSON.stringify(payload) } : {}),
-      });
-      let json = null;
-      try { json = await response.json(); } catch { /* 빈 응답 */ }
-      const rows = Array.isArray(json) ? json.length : 0;
-      return `공개 키 직접 요청에서 HTTP ${response.status}, 오류 코드 ${typeof json?.code === 'string' ? json.code : '없음'}, 돌려받은 행 ${rows}건`;
-    };
+    // 4단계 이후: 공개 키로 Supabase 를 직접 두드리는 점검과 A/B 교차 접근은 이 제출본에서 보내지 않습니다(서버 기록과 연결할 수 없음).
     attempts.push(
-      { attackId: 'anon_direct_select', expected: '공개 키로 DB 직접 읽기가 거부됨', observed: await direct('GET', '?select=id') },
-      { attackId: 'anon_direct_insert', expected: '공개 키로 DB 직접 추가가 거부됨', observed: await direct('POST', '', { title: 'attack-check', body: 'blocked-request-only' }) },
-      { attackId: 'anon_direct_update', expected: '공개 키로 DB 직접 수정이 거부됨', observed: await direct('PATCH', '?title=eq.attack-check', { title: 'attack-check-2' }) },
-      { attackId: 'anon_direct_delete', expected: '공개 키로 DB 직접 삭제가 거부됨', observed: await direct('DELETE', '?title=eq.attack-check') },
-      { attackId: 'cross_user_note_access', expected: 'B 가 A 의 메모를 읽기·수정·삭제하면 거부됨',
-        observed: '미실행: 코드에는 A/B 로그인 정보가 없어 직접 보내지 않음. 가짜 DB 단위 시험 5건과 화면 확인만 했음' },
+      { attackId: 'anon_direct_select', expected: '공개 키로 DB 직접 읽기가 거부됨', observed: 'not_run' },
+      { attackId: 'anon_direct_insert', expected: '공개 키로 DB 직접 추가가 거부됨', observed: 'not_run' },
+      { attackId: 'anon_direct_update', expected: '공개 키로 DB 직접 수정이 거부됨', observed: 'not_run' },
+      { attackId: 'anon_direct_delete', expected: '공개 키로 DB 직접 삭제가 거부됨', observed: 'not_run' },
+      { attackId: 'cross_user_note_access', expected: 'B 가 A 의 메모를 읽기·수정·삭제하면 거부됨', observed: 'not_run' },
     );
     if (config.step >= 5) {
       // 5단계: 공개 첫 화면과 /data.json 에서 서버 전용 키·공개 키·가상 메모 문장을 검색합니다(값은 기록하지 않고 있음/없음만).
-      const page = await get(app, '/').then(r => r.text(), () => '');
-      const data = await get(app, '/data.json');
-      const dataText = await data.text().catch(() => '');
+      const pageResponse = await get(app, '/').catch(() => null);
+      const page = pageResponse ? await pageResponse.text().catch(() => '') : '';
+      const data = await get(app, '/data.json').catch(() => null);
+      const dataText = data ? await data.text().catch(() => '') : '';
       const found = text => ({
         secret: /sb_secret_|service_role/u.test(text),
         publicKey: /sb_publishable_|eyJ[A-Za-z0-9_-]{10,}\./u.test(text),
@@ -120,96 +105,60 @@ export async function runAttackChecks(config) {
       const mark = flag => (flag ? '있음' : '없음');
       const home = found(page);
       const file = found(dataText);
+      const linked = pageResponse && data && linkId(pageResponse) && linkId(data);
       attempts.push({ attackId: 'public_files_key_search',
         expected: '공개 첫 화면과 /data.json 에 서버 전용 키·공개 키·가상 메모 문장이 없음',
-        observed: `첫 화면에서 서버 전용 키 ${mark(home.secret)}, 공개 키 ${mark(home.publicKey)}, 가상 메모 문장 ${mark(home.memo)} / /data.json HTTP ${data.status}, 서버 전용 키 ${mark(file.secret)}, 가상 메모 문장 ${mark(file.memo)}` });
-    }
-    if (config.step >= 5) {
+        observed: linked
+          ? `첫 화면 HTTP ${pageResponse.status}(x-vercel-id ${linkId(pageResponse)})에서 서버 전용 키 ${mark(home.secret)}, 공개 키 ${mark(home.publicKey)}, 가상 메모 문장 ${mark(home.memo)} / /data.json HTTP ${data.status}(x-vercel-id ${linkId(data)}), 서버 전용 키 ${mark(file.secret)}, 가상 메모 문장 ${mark(file.memo)}`
+          : 'not_run' });
       // 심판은 설정 파일이 아니라 배포된 /aleph.json 을 읽습니다. 실제로 열어서 공개 설정이 실렸는지 기록합니다.
-      const aleph = await get(app, '/aleph.json');
-      const published = await readJson(aleph);
+      const aleph = await get(app, '/aleph.json').catch(() => null);
+      const published = aleph ? await readJson(aleph) : null;
       const original = typeof published?.originalApiUrl === 'string' && /^https:\/\/[^?#\s]+$/u.test(published.originalApiUrl);
       const routes = Array.isArray(published?.allowedRoutes) ? published.allowedRoutes.length : 0;
       attempts.push({ attackId: 'published_aleph_json_config',
         expected: '배포된 /aleph.json 에 https originalApiUrl 과 allowedRoutes 가 있음',
-        observed: `/aleph.json HTTP ${aleph.status}, originalApiUrl ${original ? '있음' : '없음'}, allowedRoutes ${routes}개` });
+        observed: aleph && linkId(aleph)
+          ? `/aleph.json HTTP ${aleph.status}(x-vercel-id ${linkId(aleph)}), originalApiUrl ${original ? '있음' : '없음'}, allowedRoutes ${routes}개`
+          : 'not_run' });
     }
+    // 6~10단계: 판정기·탐지·정책 사본·복구 점검은 내 컴퓨터에서 한 연습이거나 쓰기 요청이 필요해
+    // 심판 기록과 연결되는 실제 API 요청이 아니므로 not_run 으로 둡니다.
+    // 연습 결과는 npm run decider:test, npm run detect:test, test/*.test.mjs 에서 봅니다.
     if (config.step >= 6) {
-      // 6단계: 판정기에 가상 요청을 직접 넣어 봅니다(심판 판정이 아니라 내 컴퓨터에서 한 연습입니다).
-      const { decide } = await import('./decider.mjs');
-      const base = { requestId: '33333333-3333-4333-8333-333333333333' };
-      const unregistered = await decide({ ...base, deviceRegistered: false });
-      const missing = await decide({ ...base });
-      const registered = await decide({ ...base, deviceRegistered: true });
-      const text = r => `${r.decision}·${r.reasonCode}`;
       attempts.push({ attackId: 'unregistered_device_local_decider',
-        expected: '미등록 기기의 가상 요청은 deny·device_not_registered, 등록 기기는 allow',
-        observed: `내 컴퓨터 판정기 연습: 미등록 ${text(unregistered)}, 값 없음 ${text(missing)}, 등록 ${text(registered)} (심판 판정 아님)` });
+        expected: '미등록 기기의 가상 요청은 deny·device_not_registered, 등록 기기는 allow', observed: 'not_run' });
     }
     if (config.step >= 7) {
-      // 7단계: 판정기에 가상 사건을 직접 넣어 봅니다(내 컴퓨터 연습이며 심판 판정이 아닙니다).
-      const { decide } = await import('./decider.mjs');
-      const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
-      const { normal, suspicious } = fixtureRequests();
-      const ordinary = await decide(normal);
-      const unusual = await decide(suspicious);
-      const noSource = await decide({ ...suspicious, signals: { source: 'none', region: 'unknown', network: 'unknown', hour: 3 } });
-      const text = r => `${r.decision}·${r.reasonCode}`;
       attempts.push({ attackId: 'unusual_access_local_decider',
-        expected: '복합 이상 사건은 step_up, 정상 사건은 allow, 출처 없는 신호는 이상으로 취급하지 않음',
-        observed: `내 컴퓨터 판정기 연습: 정상 ${text(ordinary)}, 복합 이상 ${text(unusual)}, 출처 없는 신호 ${text(noSource)} (심판 판정 아님)` });
+        expected: '복합 이상 사건은 step_up, 정상 사건은 allow, 출처 없는 신호는 이상으로 취급하지 않음', observed: 'not_run' });
     }
     if (config.step >= 8) {
-      // 8단계: 판정기에 구역별 가상 요청을 직접 넣어 봅니다(내 컴퓨터 연습이며 심판 판정이 아닙니다).
-      const { decide } = await import('./decider.mjs');
-      const { fixtureRequests } = await import('../scripts/fixture-7.mjs');
-      const { normal } = fixtureRequests();
-      const ask = async patch => { const r = await decide({ ...normal, ...patch }); return `${r.decision}·${r.reasonCode}`; };
       attempts.push({ attackId: 'zone_rules_local_decider',
-        expected: '자기 메모 한 건 읽기는 allow, 메모 전체 목록·공지 쓰기·강사 자료는 deny',
-        observed: `내 컴퓨터 판정기 연습: 메모 한 건 ${await ask({})}, 메모 목록 ${await ask({ route: 'GET /notes' })}, 공지 수정 ${await ask({ service: 'announcements', method: 'PUT', route: 'PUT /announcements/:id' })}, 강사 자료 ${await ask({ service: 'instructor', route: 'GET /instructor/:id' })} (심판 판정 아님)` });
+        expected: '자기 메모 한 건 읽기는 allow, 메모 전체 목록·공지 쓰기·강사 자료는 deny', observed: 'not_run' });
     }
     if (config.step >= 9) {
-      // 9단계: 탐지 함수에 가상 조회 사건을 직접 넣어 봅니다(내 컴퓨터 연습이며 실제 회수나 심판 판정이 아닙니다).
-      const { detect } = await import('./detect.mjs');
-      const reads = (count, intervalSeconds) => Array.from({ length: count }, (_, index) => ({
-        at: new Date(Date.UTC(2026, 9, 1) + index * intervalSeconds * 1000).toISOString(),
-        method: 'GET', identity: { sub: 'learner_fixture' },
-      }));
-      const text = result => (result.action === 'propose_revocation' ? `${result.action}·${result.reasonCode}` : result.action);
       attempts.push({ attackId: 'burst_read_local_detect',
-        expected: '10분 안 121건 조회는 propose_revocation, 정확히 120건과 느린 조회는 observe',
-        observed: `내 컴퓨터 탐지 연습: 121건 ${text(detect(reads(121, 2)))}, 120건 ${text(detect(reads(120, 2)))}, 느린 200건 ${text(detect(reads(200, 7)))} (실제 회수 아님)` });
+        expected: '10분 안 121건 조회는 propose_revocation, 정확히 120건과 느린 조회는 observe', observed: 'not_run' });
     }
     if (config.step >= 10) {
-      // 10단계: 정책 사본 검증과 복구 경로 모양을 확인합니다(실제 복구 호출은 하지 않습니다).
-      const { loadVerifiedSnapshot, currentPolicy, diffPolicy } = await import('./policy.mjs');
-      let policyResult;
-      try {
-        const { content } = await loadVerifiedSnapshot();
-        const changes = diffPolicy(content, await currentPolicy());
-        policyResult = `정책 사본 지문 확인됨, 현재 정책과 다른 항목 ${changes.length}개`;
-      } catch (error) {
-        policyResult = `정책 사본 확인 실패: ${error.message}`;
-      }
       attempts.push({ attackId: 'policy_snapshot_verified',
-        expected: '검증된 정책 사본이 있고 현재 정책과의 차이를 계산할 수 있음', observed: policyResult });
-    }
-    if (config.step >= 10) {
+        expected: '검증된 정책 사본이 있고 현재 정책과의 차이를 계산할 수 있음', observed: 'not_run' });
       attempts.push({ attackId: 'not_run_real_checks',
-        expected: '실제 배포에서 재로그인 차단, 다른 사람 메모 접근, 회수 집행, 메모 복구 호출이 모두 거부·성공 기대대로 동작함',
-        observed: `미실행: 실제 배포에 A/B 로그인 정보가 없고 기기 승인 상태 시험을 하지 못했고 회수 집행은 운영 엔진 몫이라 보내지 않음. 가짜 DB 시험(test/owner-isolation.test.mjs, test/restore.test.mjs, test/device.test.mjs)과 로컬 판정기·탐지 연습으로만 확인. 복구 경로 ${config.restoreRoute ?? '없음'}` });
+        expected: '실제 배포에서 재로그인 차단, 다른 사람 메모 접근, 회수 집행, 메모 복구 호출이 모두 기대대로 동작함', observed: 'not_run' });
     }
     if (config.step >= 11) {
-      // 11단계: 로그인 없이 기기 승인 경로와 앱 설정 파일을 실제로 요청해 봅니다.
+      // 11~12단계: 로그인 없이 기기 상태·작전 현황 경로와 앱 설정 파일을 실제로 요청해 봅니다(읽기 요청만).
       const [status, manifest, ops] = await Promise.all([
         request(app, 'GET', '/api/device/status'),
-        get(app, '/manifest.webmanifest').then(r => r.status, () => 0),
+        get(app, '/manifest.webmanifest').catch(() => null),
         config.step >= 12 ? request(app, 'GET', '/api/ops/summary') : Promise.resolve(null),
       ]);
       attempts.push({ attackId: 'device_routes_anonymous',
         expected: '로그인 없이 기기 상태 확인이 거부되고, 앱 설정 파일(manifest)은 열림',
-        observed: `비로그인 상태 확인 ${blocked(status)} / manifest HTTP ${manifest}${ops ? ` / 12단계 작전 현황 ${blocked(ops)}` : ''}` });
+        observed: status?.requestId && manifest && linkId(manifest)
+          ? `비로그인 상태 확인 ${blocked(status)} / manifest HTTP ${manifest.status}(x-vercel-id ${linkId(manifest)})${ops?.requestId ? ` / 12단계 작전 현황 ${blocked(ops)}` : ''}`
+          : 'not_run' });
     }
     return attempts;
   }
@@ -219,7 +168,9 @@ export async function runAttackChecks(config) {
     const visible = data?.sampleMarker === config.sampleMarker && Array.isArray(data.notes)
       && data.notes.length > 0;
     return [{ attackId: 'anonymous_note_read', expected: '비로그인 화면에서 가상 메모를 확인',
-      observed: visible ? '비로그인 요청에서 공개 가상 메모 확인 표시가 보임' : `비로그인 요청에서 확인 표시가 보이지 않음 (HTTP ${response.status})` }];
+      observed: linkId(response)
+        ? `비로그인 요청에서 ${visible ? '공개 가상 메모 확인 표시가 보임' : '확인 표시가 보이지 않음'} (HTTP ${response.status}, x-vercel-id ${linkId(response)})`
+        : 'not_run' }];
   }
   // 2단계: 공개 정적 파일에서 메모가 사라졌는지, 서버 API는 아직 열려 있는지 직접 요청해 기록합니다.
   const staticResponse = await get(app, '/data.json');
@@ -230,8 +181,8 @@ export async function runAttackChecks(config) {
   const apiNotes = Array.isArray(apiData?.notes) ? apiData.notes.length : 0;
   return [
     { attackId: 'public_data_json_removed', expected: '/data.json 이 404 이거나 메모가 0건',
-      observed: `비로그인 요청에서 HTTP ${staticResponse.status}, 공개 메모 ${staticNotes}건` },
+      observed: linkId(staticResponse) ? `비로그인 요청에서 HTTP ${staticResponse.status}, 공개 메모 ${staticNotes}건, x-vercel-id ${linkId(staticResponse)}` : 'not_run' },
     { attackId: 'anonymous_api_notes_read', expected: '3단계 전이라 서버 API가 아직 열려 있음을 관찰',
-      observed: `비로그인 요청에서 HTTP ${apiResponse.status}, 서버 API 메모 ${apiNotes}건` },
+      observed: linkId(apiResponse) ? `비로그인 요청에서 HTTP ${apiResponse.status}, 서버 API 메모 ${apiNotes}건, x-vercel-id ${linkId(apiResponse)}` : 'not_run' },
   ];
 }
