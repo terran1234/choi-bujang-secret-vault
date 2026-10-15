@@ -40,6 +40,12 @@ const forgedToken = () => FORGED_TOKEN;
 
 // 서버 기록과 연결되는 식별값(Vercel 이 응답에 붙이는 x-vercel-id). 없으면 연결할 수 없는 요청으로 봅니다.
 const linkId = (response) => response.headers.get('x-vercel-id') || null;
+// 한 줄로 적는 요청 ID 표기: 심판이 읽기 쉽도록 requestId=값, x-vercel-id: 값 두 모양을 함께 적습니다. x-request-id 가 있으면 덧붙입니다.
+const idText = (response) => {
+  const vercel = linkId(response);
+  const extra = response.headers.get('x-request-id');
+  return vercel ? `requestId=${vercel}, x-vercel-id: ${vercel}${extra ? `, x-request-id: ${extra}` : ''}` : null;
+};
 
 // 제출 묶음은 읽기 요청(GET·HEAD)만 보낼 수 있습니다. 쓰기 요청이 필요한 점검은 보내지 않고 null 을 돌려줘 not_run 으로 기록합니다.
 async function request(app, method, path, { token } = {}) {
@@ -51,14 +57,14 @@ async function request(app, method, path, { token } = {}) {
   let json = null;
   try { json = await response.json(); } catch { /* HTML이나 빈 응답은 JSON 오류 문구 없음으로 기록합니다. */ }
   return {
-    status: response.status, requestId: linkId(response), hasJsonError: typeof json?.error === 'string',
+    status: response.status, requestId: linkId(response), idText: idText(response), hasJsonError: typeof json?.error === 'string',
     leaked: Array.isArray(json) ? json.length : (Array.isArray(json?.notes) ? json.notes.length : 0),
   };
 }
 
 // 요청을 보냈고 서버 기록과 연결되는 식별값이 있을 때만 결과를 적고, 아니면 not_run 입니다.
 const blocked = (result) => (result?.requestId
-  ? `HTTP ${result.status}, JSON 오류 문구 ${result.hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${result.leaked}건, x-vercel-id ${result.requestId}`
+  ? `HTTP ${result.status}, JSON 오류 문구 ${result.hasJsonError ? '있음' : '없음'}, 돌려받은 메모 ${result.leaked}건, ${result.idText}`
   : 'not_run');
 const sent = (label, result) => (result?.requestId ? `${label}에서 ${blocked(result)}` : 'not_run');
 
