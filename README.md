@@ -136,6 +136,14 @@
 - **차단·알림 연결**: `npm run xdr:respond:privilege`(`xdr/privilege/respond.mjs`)가 `block`만 만료 시각(1시간)과 근거 경보 번호가 붙은 거부 규칙(`xdr/privilege/deny-rules.json`)으로 만들고, `block`·`alert`는 `xdr/alerts.log`에 한 줄씩 쌓습니다. 정상 이벤트와 출발 주소가 같으면 규칙을 넣지 않습니다. 판정기(`src/decider.mjs`)에는 직접 연결하지 않고 `isDenied`로 제공합니다(xdr-03과 같은 이유). 생성 파일은 Git에 올리지 않습니다.
 - **실행·결과**: `npm run xdr:run -- privilege`가 `xdr/privilege/result.json`을 만듭니다. 결과는 block 9 · alert 8 · record 9이고 정상 이벤트를 막은 경우는 없습니다. 시험은 `node --test test/xdr-privilege.test.mjs`입니다. 가상 경보 연습이며 실제 서비스 방어 증거가 아닙니다.
 
+## 보너스: 자료 빼돌리기 탐지 (xdr-06)
+
+- **무엇을 하나**: 경보 파일(`xdr/fixtures/exfiltration.json`)을 보고, 처음 보는 바깥 주소로 큰 자료가 빠져나가는 반출인지 판단합니다. 근거는 MITRE ATT&CK T1041(명령 통로로 유출)과 T1048(다른 프로토콜로 유출)입니다.
+- **판단기**: `xdr/exfiltration/decide.mjs`는 다른 파일·패키지를 불러오지 않고 혼자 계산합니다. 경보 수준이 10 이상이고 전송량이 50MB 이상이면 `block`(확신도 0.85 이상), 태그는 있으나 전송량이 작거나 수준이 낮은 단발 흔적은 `alert`(0.5 이상 0.85 미만), 태그가 없거나 수준이 5 미만이면 `record`입니다. 패턴 목록과 근거는 `xdr/exfiltration/patterns.json`에 있습니다.
+- **읽기 확인**: `node xdr/exfiltration/read-alerts.mjs`가 시각·출발 주소·계정·수준·설명만 뽑습니다(경보 30건, 뽑은 줄 30줄).
+- **차단·알림 연결**: `npm run xdr:respond:exfiltration`(`xdr/exfiltration/respond.mjs`)가 `block`만 만료 시각(1시간)과 근거 경보 번호가 붙은 거부 규칙(`xdr/exfiltration/deny-rules.json`)으로 만들고, `block`·`alert`는 `xdr/alerts.log`에 한 줄씩 쌓습니다. 이 모듈의 규칙은 **목적지 주소(dstip)** 를 막습니다. 정상 이벤트의 목적지와 같으면 규칙을 넣지 않습니다. 판정기(`src/decider.mjs`)에는 직접 연결하지 않고 `isDenied`로 제공합니다(xdr-03과 같은 이유). 생성 파일은 Git에 올리지 않습니다.
+- **실행·결과**: `npm run xdr:run -- exfiltration`이 `xdr/exfiltration/result.json`을 만듭니다. 결과는 block 10 · alert 10 · record 10이고 정상 이벤트를 막은 경우는 없습니다. 시험은 `node --test test/xdr-exfiltration.test.mjs`입니다. 가상 경보 연습이며 실제 서비스 방어 증거가 아닙니다.
+
 ## 코딩 도구 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽히고 한 번에 한 제작 프롬프트만 요청합니다.

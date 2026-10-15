@@ -1,0 +1,37 @@
+{
+  "schema": "aleph.xdr.patterns.v1",
+  "moduleKey": "exfiltration",
+  "basis": ["MITRE ATT&CK T1041", "MITRE ATT&CK T1048"],
+  "patterns": [
+    {
+      "name": "처음보는_목적지_대량_자료",
+      "when": "처음 보는 목적지로 파일 100건 이상이 한 번에 나가고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1048 / T1041: 짧은 시간에 많은 자료를 바깥으로 옮기는 전형적인 반출 형태"
+    },
+    {
+      "name": "같은_목적지_대용량_반복",
+      "when": "같은 목적지로 대용량 전송이 8번 이상 반복되고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1041 (Exfiltration Over C2 Channel): 명령 통로로 같은 곳에 반복해 자료를 빼내는 기법"
+    },
+    {
+      "name": "업무시간밖_압축파일_반출",
+      "when": "업무(수업) 시간 밖에 압축 파일이 처음 보는 주소로 나가고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1048 (Exfiltration Over Alternative Protocol): 압축해 묶은 자료를 눈에 덜 띄는 시간에 반출하는 형태"
+    },
+    {
+      "name": "비표준_포트_자료이름_연속전송",
+      "when": "평소에 쓰지 않던 포트로 자료 이름이 연속 전송되고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1048: 일반 업무에서 쓰지 않는 다른 프로토콜·포트로 자료를 내보내는 기법"
+    },
+    {
+      "name": "압축파일_연속_또는_다중_목적지",
+      "when": "압축 파일이 연속으로 올라가거나 여러 목적지로 같은 파일이 나가고 경보 수준이 높음",
+      "evidence": "MITRE ATT&CK T1048: 같은 묶음을 여러 곳에 나누어 보내는 것은 반출 시도를 확실히 하려는 형태"
+    },
+    {
+      "name": "단발_전송_흔적",
+      "when": "반출 기법 태그(T1041·T1048)는 있으나 전송량이 작거나 수준이 낮은 단발 흔적(알림만, 차단하지 않음)",
+      "evidence": "MITRE ATT&CK T1041/T1048 (판단 보류): 정상 백업·수업 자료 동기화와 구분되지 않는 단발 흔적"
+    }
+  ]
+}

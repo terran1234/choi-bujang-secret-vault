@@ -1,0 +1,191 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "exfiltration",
+  "decisions": [
+    {
+      "alertId": "ex-01",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "처음보는_목적지_대량_자료"
+    },
+    {
+      "alertId": "ex-02",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "업무시간밖_압축파일_반출"
+    },
+    {
+      "alertId": "ex-03",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "같은_목적지_대용량_반복"
+    },
+    {
+      "alertId": "ex-04",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "비표준_포트_자료이름_연속전송"
+    },
+    {
+      "alertId": "ex-05",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "처음보는_목적지_대량_자료"
+    },
+    {
+      "alertId": "ex-06",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "같은_목적지_대용량_반복"
+    },
+    {
+      "alertId": "ex-07",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "압축파일_연속_또는_다중_목적지"
+    },
+    {
+      "alertId": "ex-08",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "처음보는_목적지_대량_자료"
+    },
+    {
+      "alertId": "ex-09",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "같은_목적지_대용량_반복"
+    },
+    {
+      "alertId": "ex-10",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "압축파일_연속_또는_다중_목적지"
+    },
+    {
+      "alertId": "ex-11",
+      "action": "alert",
+      "confidence": 0.57,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-12",
+      "action": "alert",
+      "confidence": 0.61,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-13",
+      "action": "alert",
+      "confidence": 0.5,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-14",
+      "action": "alert",
+      "confidence": 0.54,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-15",
+      "action": "alert",
+      "confidence": 0.62,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-16",
+      "action": "alert",
+      "confidence": 0.57,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-17",
+      "action": "alert",
+      "confidence": 0.61,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-18",
+      "action": "alert",
+      "confidence": 0.5,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-19",
+      "action": "alert",
+      "confidence": 0.54,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-20",
+      "action": "alert",
+      "confidence": 0.61,
+      "reason": "단발_전송_흔적"
+    },
+    {
+      "alertId": "ex-21",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-22",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-23",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-24",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-25",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-26",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-27",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-28",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-29",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    },
+    {
+      "alertId": "ex-30",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_이벤트"
+    }
+  ],
+  "counts": {
+    "block": 10,
+    "alert": 10,
+    "record": 10
+  }
+}
