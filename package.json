@@ -16,7 +16,8 @@
     "policy:restore": "node scripts/policy-restore.mjs restore",
     "ops:report": "node scripts/ops-report.mjs",
     "xdr:respond": "node xdr/known-cve/respond.mjs",
-    "xdr:respond:persistence": "node xdr/persistence/respond.mjs"
+    "xdr:respond:persistence": "node xdr/persistence/respond.mjs",
+    "xdr:respond:privilege": "node xdr/privilege/respond.mjs"
   },
   "engines": {
     "node": ">=22"
