@@ -35,13 +35,9 @@ const get = (app, path) => fetch(new URL(path, app), {
 });
 
 // 로그인 증표 모양만 흉내 낸 가짜입니다. 서명이 틀려서 서버가 거부해야 합니다(실제 비밀값이 아닙니다).
-function forgedToken(config) {
-  const part = value => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url');
-  return `${part({ alg: 'HS256', typ: 'JWT' })}.${part({
-    iss: config.identityProvider.issuer, aud: config.identityProvider.audience, role: 'authenticated',
-    sub: '11111111-1111-4111-8111-111111111111', exp: Math.floor(Date.now() / 1000) + 3600,
-  })}.${part('forged-signature')}`;
-}
+// 격리 환경에는 Buffer 가 없어서 미리 만들어 둔 고정 문자열을 씁니다. 발급자·대상은 aleph.config.json 의 identityProvider 와 같습니다.
+const FORGED_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL21pd2ZuYmJqemV2cmR2bmFta2xiLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJleHAiOjQxMDI0NDQ4MDB9.Zm9yZ2VkLXNpZ25hdHVyZQ';
+const forgedToken = () => FORGED_TOKEN;
 
 // 제출 묶음은 읽기 요청(GET·HEAD)만 보낼 수 있습니다. 쓰기 요청이 필요한 점검은 보내지 않고 null 을 돌려줘 not_run 으로 기록합니다.
 async function request(app, method, path, { token, body } = {}) {
