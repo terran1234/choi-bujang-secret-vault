@@ -1,0 +1,155 @@
+{
+  "schema": "aleph.xdr.result.v1",
+  "moduleKey": "known-cve",
+  "decisions": [
+    {
+      "alertId": "kc-01",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "원격_조회_구문_머리글"
+    },
+    {
+      "alertId": "kc-02",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "원격_조회_구문_주소인자"
+    },
+    {
+      "alertId": "kc-03",
+      "action": "block",
+      "confidence": 0.93,
+      "reason": "원격_조회_구문_반복"
+    },
+    {
+      "alertId": "kc-04",
+      "action": "block",
+      "confidence": 0.91,
+      "reason": "원격_조회_구문_반복"
+    },
+    {
+      "alertId": "kc-05",
+      "action": "block",
+      "confidence": 0.9,
+      "reason": "원격_조회_구문_주소인자"
+    },
+    {
+      "alertId": "kc-06",
+      "action": "block",
+      "confidence": 0.95,
+      "reason": "원격_조회_구문_반복"
+    },
+    {
+      "alertId": "kc-07",
+      "action": "block",
+      "confidence": 0.88,
+      "reason": "원격_조회_구문_머리글"
+    },
+    {
+      "alertId": "kc-08",
+      "action": "block",
+      "confidence": 0.92,
+      "reason": "원격_조회_구문_머리글과_주소_동시"
+    },
+    {
+      "alertId": "kc-09",
+      "action": "alert",
+      "confidence": 0.59,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-10",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-11",
+      "action": "alert",
+      "confidence": 0.58,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-12",
+      "action": "alert",
+      "confidence": 0.54,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-13",
+      "action": "alert",
+      "confidence": 0.55,
+      "reason": "취약점_점검_인자"
+    },
+    {
+      "alertId": "kc-14",
+      "action": "alert",
+      "confidence": 0.63,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-15",
+      "action": "alert",
+      "confidence": 0.59,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-16",
+      "action": "alert",
+      "confidence": 0.69,
+      "reason": "취약점_이름_또는_조각만"
+    },
+    {
+      "alertId": "kc-17",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-18",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-19",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-20",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-21",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-22",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-23",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    },
+    {
+      "alertId": "kc-24",
+      "action": "record",
+      "confidence": 0,
+      "reason": "정상_요청"
+    }
+  ],
+  "counts": {
+    "block": 8,
+    "alert": 8,
+    "record": 8
+  }
+}

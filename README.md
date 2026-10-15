@@ -112,6 +112,14 @@
 
 이 저장소의 1단계 때 공개했던 커밋 기록, 이전 Vercel 배포(미리보기 주소 포함), 이미 복사되었을 수 있는 내용은 지워지지 않았습니다. 이전 단계의 화면 코드에는 공개용 키가 들어 있던 커밋도 남아 있습니다. 따라서 과거 노출이 해소되었다고 말할 수 없습니다.
 
+## 보너스: 알려진 취약점 악용 탐지 (xdr-03)
+
+- **무엇을 하나**: 경보 파일(`xdr/fixtures/known-cve.json`)을 보고, 이미 공개된 취약점(CVE-2021-44228, 원격 조회 구문 `${jndi:ldap://…}`)을 노린 요청인지 판단합니다. 근거는 CVE-2021-44228과 MITRE ATT&CK T1190입니다.
+- **판단기**: `xdr/known-cve/decide.mjs`는 다른 파일·패키지를 불러오지 않고 혼자 계산합니다. 완전한 원격 조회 구문이 머리글이나 주소에 있으면 `block`(확신도 0.85 이상), CVE 이름·`jndi` 단어·구문 조각 같은 애매한 흔적은 `alert`(0.5 이상 0.85 미만), 그 밖은 `record`입니다. 패턴 목록과 근거는 `xdr/known-cve/patterns.json`에 있습니다.
+- **읽기 확인**: `node xdr/known-cve/read-alerts.mjs`가 시각·출발 주소·계정·수준·설명만 뽑습니다(경보 24건, 뽑은 줄 24줄).
+- **차단·알림 연결**: `npm run xdr:respond`(`xdr/known-cve/respond.mjs`)가 `block`만 만료 시각(1시간)과 근거 경보 번호가 붙은 거부 규칙(`xdr/known-cve/deny-rules.json`)으로 만들고, `block`·`alert`는 `xdr/alerts.log`에 한 줄씩 쌓습니다. 정상 이벤트와 출발 주소가 같으면 규칙을 넣지 않습니다. 이 저장소의 판정기(`src/decider.mjs`)는 요청에 출발 주소를 받지 않아 **직접 연결하지 않았고**, 판정기 앞단이 읽는 입력(`isDenied`)으로 제공합니다. 두 생성 파일은 Git에 올리지 않습니다.
+- **실행·결과**: `npm run xdr:run -- known-cve`가 `xdr/known-cve/result.json`을 만듭니다. 결과는 block 8 · alert 8 · record 8이고 정상 이벤트를 막은 경우는 없습니다. 시험은 `node --test test/xdr-known-cve.test.mjs`입니다. 가상 경보 연습이며 실제 서비스 방어 증거가 아닙니다.
+
 ## 코딩 도구 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽히고 한 번에 한 제작 프롬프트만 요청합니다.
