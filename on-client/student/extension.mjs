@@ -134,10 +134,61 @@ function renderIdentity({ me, devices, sessions } = {}) {
   return root;
 }
 
+// ---------- 14단계: 업무 앱 접근 판정 표시 ----------
+
+const DECISION_TEXT = {
+  allow: '허용',
+  deny: '거부',
+  challenge: '추가 확인 필요',
+  unknown: '확인 불가',
+};
+
+const DECISION_NOTE = {
+  allow: '정책상 접근 허용입니다. 실제 앱 접속 성공을 보장하지 않습니다.',
+  deny: '정책상 접근이 거부되었습니다.',
+  challenge: '추가 인증 또는 확인이 필요합니다. 이 앱이 확인 절차를 대신 수행하지 않습니다.',
+  unknown: '판정을 확인할 수 없습니다. 접근이 허용되었다는 뜻이 아닙니다.',
+};
+
+function renderDecision({ status, mode, data, error, appId } = {}) {
+  // 호출할 때마다 새 요소를 만들어 돌려주므로 이전 판정은 남지 않는다.
+  const box = el('section', undefined, 'decision');
+  box.setAttribute('aria-label', '접근 판정');
+  box.append(el('h3', '접근 판정'));
+
+  const modeText = MODE_TEXT[mode];
+  if (modeText) box.append(el('p', '자료 구분: ' + modeText, 'decision-mode'));
+
+  if (status === 'idle') {
+    box.append(el('p', '앱을 골라 접속을 요청하세요', 'decision-idle'));
+  } else if (status === 'loading') {
+    if (appId) box.append(el('p', '대상 앱: ' + appId));
+    box.append(el('p', '판정 확인 중', 'decision-loading'));
+  } else if (status === 'error') {
+    if (appId) box.append(el('p', '대상 앱: ' + appId));
+    const message = error && error.message ? error.message : '확인 불가';
+    box.append(el('p', '요청 실패: ' + message, 'decision-error'));
+    box.append(el('p', '요청이 실패했을 뿐 접근 거부 판정이 아니며, 접근이 허용되었다는 뜻도 아닙니다.'));
+  } else if (status === 'ok' && data) {
+    // 목록에 없는 값은 허용으로 읽히지 않도록 unknown 으로 처리한다.
+    const known = Object.hasOwn(DECISION_TEXT, data.decision);
+    const code = known ? data.decision : 'unknown';
+    box.append(el('p', '대상 앱: ' + (data.appId || appId || '확인 불가')));
+    box.append(el('p', '판정: ' + DECISION_TEXT[code] + '(' + code + ')', 'decision-result decision-' + code));
+    box.append(el('p', DECISION_NOTE[code]));
+    box.append(el('p', '판정 이유: ' + (data.reason || '확인 불가')));
+    box.append(el('p', '판정 시각: ' + (data.checkedAt || '확인 불가')));
+  } else {
+    box.append(el('p', '확인 불가(unknown)', 'decision-unknown'));
+    box.append(el('p', '판정을 확인할 수 없습니다. 접근이 허용되었다는 뜻이 아닙니다.'));
+  }
+  return box;
+}
+
 export function createStudentView() {
   return {
     renderIdentity,
-    renderDecision() { return '학생 구현 대기: 서버의 판정과 이유를 연결하세요.'; },
+    renderDecision,
     renderEvents() { return '학생 구현 대기: 본인 접속·XDR 기록을 연결하세요.'; },
     renderStatus() { return '학생 구현 대기: 기기·세션·알림과 연결 점검 상태를 구분하세요.'; },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
