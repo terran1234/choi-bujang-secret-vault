@@ -29,12 +29,17 @@ function el(tag, text, className) {
   return node;
 }
 
+// 설명 옆에 서버가 보낸 원래 상태값을 함께 적는다. 예: 보안 기준 미충족(noncompliant)
+function withCode(text, status) {
+  return typeof status === 'string' && status ? text + '(' + status + ')' : text;
+}
+
 function deviceText(status) {
-  return DEVICE_STATUS_TEXT[status] || DEVICE_STATUS_TEXT.unknown;
+  return withCode(DEVICE_STATUS_TEXT[status] || DEVICE_STATUS_TEXT.unknown, status);
 }
 
 function sessionText(status) {
-  return SESSION_STATUS_TEXT[status] || SESSION_STATUS_TEXT.unknown;
+  return withCode(SESSION_STATUS_TEXT[status] || SESSION_STATUS_TEXT.unknown, status);
 }
 
 // 미충족·만료·철회됨은 색이 아니라 글자로도 정상과 구분한다.
