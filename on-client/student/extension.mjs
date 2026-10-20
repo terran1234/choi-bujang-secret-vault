@@ -268,6 +268,24 @@ function buildEventDetail(event) {
   box.append(el('p', '접속 상태(access): ' + accessText(state.access)));
   box.append(el('p', '세션 상태(session): ' + sessionText(state.session)));
   box.append(el('p', '기기 상태(device): ' + deviceText(state.device)));
+
+  // 16단계: 연결되지 않은 조치가 넘어오면 요청을 보내지 않는 비활성 안내만 둔다.
+  // supportedActions 가 비어 있으면 버튼을 만들지 않는다.
+  const actions = Array.isArray(event.supportedActions) ? event.supportedActions : [];
+  const names = actions
+    .map((a) => (typeof a === 'string' ? a : a && (a.id || a.action || a.name)))
+    .filter((a) => typeof a === 'string' && a);
+  if (names.length > 0) {
+    box.append(el('h5', '조치'));
+    for (const name of names) {
+      const btn = el('button', name + ' 미지원');
+      btn.type = 'button';
+      btn.disabled = true;
+      btn.setAttribute('aria-label', name + ' 미지원');
+      box.append(btn);
+    }
+    box.append(el('p', '조치 실행 연결은 준비 중입니다. 이 화면은 어떤 조치 요청도 보내지 않으며 조치가 실행되지 않았습니다.'));
+  }
   return box;
 }
 
@@ -375,12 +393,162 @@ function renderEvents({ status, mode, data, error } = {}) {
   return root;
 }
 
+// ---------- 16단계: 알림·빈 상태·오류·진단 정보 ----------
+
+const RESOURCE_TEXT = {
+  me: '사용자',
+  devices: '기기',
+  sessions: '세션',
+  events: '기록',
+  apps: '업무 앱',
+  diagnostics: '도움정보',
+  access: '접속 판정',
+};
+
+const RETRY_GUIDE = '다시 시도는 위쪽 다시 불러오기 버튼을 직접 누르세요. 자동으로 다시 요청하지 않습니다.';
+
+function isTimeout(error) {
+  return !!error && (/TIMEOUT/i.test(String(error.code || '')) || /시간.*초과/.test(String(error.message || '')));
+}
+
+// 받침이 있으면 '을', 없으면 '를'
+function objectParticle(word) {
+  const code = word.charCodeAt(word.length - 1);
+  const hasFinal = code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0;
+  return hasFinal ? '을' : '를';
+}
+
+function failureLines(what, error) {
+  const message = error && error.message ? error.message : '확인 불가';
+  const lines = [];
+  lines.push(el('p', what + objectParticle(what) + ' 불러오지 못했습니다: ' + message, 'status-error'));
+  if (isTimeout(error)) lines.push(el('p', '원인: 시간 초과(응답이 제한 시간 안에 오지 않음)'));
+  lines.push(el('p', RETRY_GUIDE));
+  return lines;
+}
+
+function statusBlock(title, part, what, buildOk) {
+  const box = el('section', undefined, 'status-section');
+  box.setAttribute('aria-label', title);
+  box.append(el('h4', title));
+  const modeText = MODE_TEXT[part && part.mode];
+  if (modeText) box.append(el('p', '자료 구분: ' + modeText, 'status-mode'));
+
+  const status = part && part.status;
+  if (status === 'loading') box.append(el('p', what + ' 불러오는 중', 'status-loading'));
+  else if (status === 'error') box.append(...failureLines(what, part.error));
+  else if (status === 'idle') box.append(el('p', what + ' 아직 불러오지 않았습니다', 'status-idle'));
+  else if (status === 'ok' && part.data !== undefined) buildOk(box, part.data);
+  else box.append(el('p', what + ' 확인 불가', 'status-unknown'));
+  return box;
+}
+
+// 복사하는 값은 비밀이 없는 여섯 개뿐이다.
+function safeDiagnostics(data) {
+  const engine = (data && data.engine) || {};
+  return {
+    requestId: data.requestId,
+    component: data.component,
+    version: data.version,
+    checkedAt: data.checkedAt,
+    'engine.mode': engine.mode,
+    'engine.code': engine.code,
+  };
+}
+
+function renderStatus({ devices, sessions, notifications, diagnostics, mode } = {}) {
+  const root = el('section', undefined, 'status');
+  root.setAttribute('aria-label', '기기·세션·알림·도움정보');
+  root.append(el('h3', '기기·세션·알림·도움정보'));
+  const modeText = MODE_TEXT[mode];
+  if (modeText) root.append(el('p', '자료 구분: ' + modeText, 'status-mode'));
+
+  root.append(
+    statusBlock('등록된 기기', devices, '기기', (box, list) => {
+      if (!Array.isArray(list)) return box.append(el('p', '기기 확인 불가', 'status-unknown'));
+      if (list.length === 0) return box.append(el('p', '등록된 기기가 없습니다', 'status-empty'));
+      const ul = el('ul');
+      for (const d of list) {
+        ul.append(el('li', (d.label || d.id || '확인 불가') + ' — ' + warnText('device', d.status) + deviceText(d.status)));
+      }
+      return box.append(ul);
+    }),
+  );
+
+  root.append(
+    statusBlock('로그인 세션', sessions, '세션', (box, list) => {
+      box.append(el('p', '세션은 지금 검증된 연결 1건만 표시합니다. 지난 세션 목록이 아닙니다.'));
+      if (!Array.isArray(list)) return box.append(el('p', '세션 확인 불가', 'status-unknown'));
+      if (list.length === 0) return box.append(el('p', '현재 연결 없음', 'status-empty'));
+      const ul = el('ul');
+      for (const s of list) {
+        ul.append(el('li', '세션 ' + (s.id || '확인 불가') + ' — ' + warnText('session', s.status) + sessionText(s.status)));
+      }
+      return box.append(ul);
+    }),
+  );
+
+  const notes = el('section', undefined, 'status-section');
+  notes.setAttribute('aria-label', '알림');
+  notes.append(el('h4', '알림'));
+  if (!Array.isArray(notifications)) {
+    notes.append(el('p', '알림 확인 불가', 'status-unknown'));
+  } else if (notifications.length === 0) {
+    notes.append(el('p', '주의할 알림이 없습니다', 'status-empty'));
+  } else {
+    const ul = el('ul');
+    for (const n of notifications) {
+      const resource = n.resource ? (RESOURCE_TEXT[n.resource] ? RESOURCE_TEXT[n.resource] + '(' + n.resource + ')' : n.resource) : '확인 불가';
+      ul.append(el('li', '자료: ' + resource + ' · 코드: ' + (n.code || '확인 불가') + ' · ' + (n.message || '확인 불가')));
+    }
+    notes.append(ul);
+  }
+  root.append(notes);
+
+  const diag = statusBlock('도움정보', diagnostics, '도움정보', (box, data) => {
+    const safe = safeDiagnostics(data || {});
+    const dl = el('ul');
+    for (const [key, value] of Object.entries(safe)) {
+      dl.append(el('li', key + ': ' + (value === undefined || value === null || value === '' ? '확인 불가' : String(value))));
+    }
+    box.append(dl);
+  });
+  if (diagnostics && diagnostics.status === 'idle') {
+    diag.append(el('p', '제공 화면의 도움정보 불러오기 버튼을 누르면 표시됩니다.'));
+  }
+
+  const copy = el('button', '도움정보 복사');
+  copy.type = 'button';
+  copy.setAttribute('aria-label', '도움정보 복사');
+  const copyNote = el('p', '이 정보는 도움을 요청할 때 쓰도록 복사합니다. 버튼을 누를 때만 복사하고 어디로도 전송하지 않습니다. 비밀번호·토큰·API 키는 들어 있지 않습니다.');
+  const copyResult = el('p', undefined, 'status-copy-result');
+  copyResult.setAttribute('role', 'status');
+  const ready = !!(diagnostics && diagnostics.status === 'ok' && diagnostics.data);
+  copy.disabled = !ready;
+  copy.addEventListener('click', async () => {
+    if (!ready) return;
+    const text = JSON.stringify(safeDiagnostics(diagnostics.data), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      copyResult.textContent = '도움정보를 클립보드에 복사했습니다.';
+    } catch {
+      copyResult.textContent = '자동 복사를 사용할 수 없습니다. 아래 내용을 직접 선택해 복사하세요.\n' + text;
+    }
+  });
+  diag.append(copyNote, copy);
+  if (!ready) diag.append(el('p', '복사할 도움정보가 없어 버튼을 쓸 수 없습니다.'));
+  diag.append(copyResult);
+  root.append(diag);
+
+  return root;
+}
+
 export function createStudentView() {
   return {
     renderIdentity,
     renderDecision,
     renderEvents,
-    renderStatus() { return '학생 구현 대기: 기기·세션·알림과 연결 점검 상태를 구분하세요.'; },
+    renderStatus,
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
     renderAiConnection() { return '학생 구현 대기: 모델 응답 점검과 실제 사건 설명을 구분하고 AI 오류·취소·수동 복구를 안내하세요.'; },
     renderExplanation() { return '학생 구현 대기: 선택한 사건의 근거·규칙·현재 상태와 AI 설명을 연결하세요. 제안은 자동 실행하지 않습니다.'; },
