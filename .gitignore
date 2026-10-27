@@ -10,3 +10,7 @@ xdr/known-cve/deny-rules.json
 xdr/persistence/deny-rules.json
 xdr/privilege/deny-rules.json
 xdr/exfiltration/deny-rules.json
+
+# 비밀 없는 설정 견본은 저장소에 포함한다(21~22단계 이동 가능한 구성)
+!.env.example
+!on-client/.env.example

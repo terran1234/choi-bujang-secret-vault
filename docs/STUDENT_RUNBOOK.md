@@ -36,7 +36,7 @@
 ## 3. 폴더 구조
 
 ```text
-C:\Users\user\choi-bujang-secret-vault\      ← Git 저장소 최상위(프로젝트 폴더)
+<프로젝트 폴더>\                            ← Git 저장소 최상위(저장소를 받은 위치. 이름은 choi-bujang-secret-vault)
 ├─ README.md                                   ← 저장소 설명(1~12단계 + 13~22단계 안내)
 ├─ docs\STUDENT_RUNBOOK.md                     ← 이 문서
 ├─ api\ src\ public\ ...                       ← 자료실(1~12단계, Vercel)
@@ -117,7 +117,7 @@ flowchart LR
 
 ### 5-2. PowerShell을 여는 위치
 
-1. 파일 탐색기에서 `C:\Users\user\choi-bujang-secret-vault\on-client` 폴더를 엽니다. (**저장소 최상위가 아니라 그 안의 `on-client`** 입니다.)
+1. 파일 탐색기에서 저장소를 받은 폴더(`<프로젝트 폴더>`) 안의 `on-client` 폴더를 엽니다. (**저장소 최상위가 아니라 그 안의 `on-client`** 입니다.)
 2. 주소 표시줄에 `powershell`을 입력하고 Enter를 누릅니다. 그 폴더에서 PowerShell 창이 열립니다.
 
 ### 5-3. 실행 명령
@@ -198,4 +198,4 @@ flowchart LR
 ## 10. 비밀값 관리
 
 - 이 문서와 저장소에는 키·토큰·비밀번호를 적지 않았습니다. 키가 필요한 연결은 화면의 안내 절차로만 하며 값을 직접 입력하지 않습니다.
-- `on-client/.env.example`에는 비밀 없는 설정(포트 `ON_PORT=5189` 등)만 있습니다. 실제 `.env`는 만들지 않았고, 저장소 `.gitignore`가 `.env`를 제외합니다.
+- `on-client/.env.example`에는 비밀 없는 설정(포트 `ON_PORT=5189` 등)만 있습니다. 실제 `.env`는 만들지 않았고, 저장소 `.gitignore`가 `.env`와 `.env.*`를 제외합니다. 비밀이 없는 견본 `.env.example`만 예외로 저장소에 포함합니다(22단계 새 환경 재현에서 이 파일이 빠져 있는 것을 발견해 고쳤습니다).
