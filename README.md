@@ -2,6 +2,16 @@
 
 이 저장소는 방어전 시작 틀에서 만든 학생의 자료실입니다. 들어 있는 메모는 모두 가상 자료이고, 실제 개인정보·비밀번호·키는 넣지 않습니다.
 
+## 13~22단계: 케셰브 (`on-client` 폴더)
+
+13단계부터는 같은 저장소 안의 `on-client` 폴더에 제공 시작 틀(0.2.11)을 넣고, 내 PC에서만 켜는 보안 Agent 앱 **케셰브**를 만듭니다. 아래 1~12단계 자료실(Vercel)과는 별개의 앱입니다.
+
+- **목적**: 직원 본인의 로그인 사용자·기기·세션, 업무 앱 접근 판정, 접속 기록·XDR 경보, 기기·세션·알림 상태, AI 연결 점검과 근거 있는 사건 설명, 조치 상태, 설치 패키지의 알려진 취약점 조회 결과를 한 화면에서 구분해 보여 줍니다.
+- **내가 만든 것**: `on-client/student/extension.mjs`의 표시 함수 8개(`renderIdentity`, `renderDecision`, `renderEvents`, `renderStatus`, `renderAiConnection`, `renderExplanation`, `renderAction`, `renderVulnerabilities`). 제공 화면·서버(`on-client/public`, `on-client/src`)는 고치지 않았습니다.
+- **지원 환경과 버전**: Windows 11 Pro 10.0.26100, Node.js v24.21.0(수업 기준 24.19.0), npm 11.19.0. 다른 운영체제와 브라우저는 확인하지 않았습니다.
+- **켜는 법(요약)**: `on-client` 폴더의 PowerShell에서 `npm run demo`(예제 화면) 또는 `npm start`(연결 안 된 기본 상태)를 실행하고 브라우저로 http://127.0.0.1:5189/ 를 엽니다. 자세한 순서, 구성도, 오류별 확인 순서, 미확인 항목은 [docs/STUDENT_RUNBOOK.md](docs/STUDENT_RUNBOOK.md)에 있습니다.
+- **확인하지 않은 것**: 실제 접근 제어·XDR 시스템 연결, 앱 안 AI 연결 성공, 실제 조치 집행, OSV 실제 조회, 제공 실행 도구 `tools\start-alekov.ps1`의 실행은 확인하지 않았습니다.
+
 ## 단계 기록
 
 - **1단계**: 가상 메모를 공개 `data.json`으로 그대로 내보내 노출 상태를 직접 확인했습니다.
