@@ -610,6 +610,35 @@ function pcDelta(cur, prev, unit) {
   return '직전 측정 대비 ' + (d > 0 ? '+' : '') + d + unit;
 }
 
+// 읽지 못한 이유 코드별로 다음에 할 일을 알려 준다. 예시 값으로 대신 채우지 않는다.
+function nextStep(code) {
+  switch (code) {
+    case 'ADMIN_REQUIRED':
+      return '관리자 권한이 필요한 항목입니다. 이 앱은 권한을 올리지 않으므로 확인 불가로 남습니다. 꼭 필요하면 담당자에게 문의하세요.';
+    case 'READ_TIMEOUT':
+      return '잠시 뒤 「다시 조회」를 눌러 보세요.';
+    case 'UNSUPPORTED_OS':
+      return 'Windows에서만 읽을 수 있는 항목입니다. 이 PC에서는 확인할 수 없습니다.';
+    case 'POWERSHELL_NOT_FOUND':
+      return 'Windows PowerShell이 있는지 확인한 뒤 「다시 조회」를 눌러 보세요.';
+    default:
+      return '「다시 조회」를 눌러 보세요. 계속 실패하면 위쪽 도움정보를 복사해 담당자에게 보여 주세요.';
+  }
+}
+
+// 응답은 받았지만 읽지 못한 항목의 이름을 모은다.
+function failedItems(data) {
+  const parts = [
+    ['CPU 사용률', data.cpu], ['메모리 사용량', data.memory], ['디스크 남은 공간', data.disk],
+    ['네트워크 구성', data.networkConfig], ['방화벽 설정', data.firewall], ['Windows 기록', data.events],
+  ];
+  const failed = parts.filter(([, part]) => !part || part.status !== 'ok').map(([name]) => name);
+  if (data.events && data.events.status === 'ok' && Array.isArray(data.events.logs)) {
+    for (const log of data.events.logs) if (log.status !== 'ok') failed.push('Windows 기록(' + log.log + ')');
+  }
+  return failed;
+}
+
 function pcRow(label, part, describe, trend) {
   const row = el('li', undefined, 'pc-row');
   row.append(el('p', label));
@@ -617,6 +646,7 @@ function pcRow(label, part, describe, trend) {
     const reason = part && part.reason;
     row.append(el('p', '? 확인 불가', 'pc-unknown'));
     row.append(el('p', '이유: ' + (reason ? reason.message + ' (' + reason.code + ')' : '값을 받지 못했습니다')));
+    row.append(el('p', '다음에 할 일: ' + nextStep(reason && reason.code), 'pc-next'));
     if (part && part.measuredAt) row.append(el('p', '시도한 시각: ' + kst(part.measuredAt)));
     return row;
   }
@@ -689,15 +719,29 @@ function paintPc() {
   const kids = [el('h4', '내 PC 사용량 (이 PC에서 실제로 잰 값)')];
   kids.push(el('p', '예시 값이 아니라 이 앱이 이 PC에서 일반 권한으로 직접 읽은 값입니다. 읽지 못한 항목은 확인 불가와 이유를 보여 주며 정상값으로 채우지 않습니다. 자동으로 반복해서 재지 않습니다.', 'pc-note'));
 
+  box.setAttribute('aria-busy', pcUi.status === 'loading' ? 'true' : 'false');
+
   if (pcUi.status === 'loading') {
-    kids.push(el('p', '재는 중', 'pc-loading'));
+    const wait = el('p', '… 조회 중입니다. PowerShell로 읽기 때문에 몇 초 걸릴 수 있습니다. 이전 값은 지웠고 새 값이 오면 표시합니다.', 'pc-loading');
+    wait.setAttribute('role', 'status');
+    kids.push(wait);
   } else if (pcUi.status === 'error') {
-    kids.push(el('p', '? 확인 불가: 측정 요청에 실패했습니다 — ' + (pcUi.error || '확인 불가'), 'pc-error'));
-    kids.push(el('p', '값을 받지 못했으므로 정상으로 보지 마세요.'));
+    const fail = el('p', '? 확인 불가: 조회 요청에 실패했습니다 — ' + (pcUi.error || '확인 불가'), 'pc-error');
+    fail.setAttribute('role', 'alert');
+    kids.push(fail);
+    kids.push(el('p', '실패한 항목: CPU 사용률, 메모리 사용량, 디스크 남은 공간, 네트워크 구성, 방화벽 설정, Windows 기록 (값을 하나도 받지 못했습니다)', 'pc-failures'));
+    kids.push(el('p', '다음에 할 일: ① 앱 서버가 켜져 있는지 확인하세요(on-client 폴더에서 npm run demo). ② 켜져 있으면 「다시 조회」를 누르세요.', 'pc-next'));
+    kids.push(el('p', '값을 받지 못했으므로 정상으로 보지 마세요. 예시 값으로 대신 채우지 않았습니다.'));
   } else if (pcUi.status === 'ok' && pcUi.data) {
     const data = pcUi.data;
     const cur = pcSnapshot(data);
     const prev = pcUi.history.length >= 2 ? pcUi.history[pcUi.history.length - 2] : null;
+    const failed = failedItems(data);
+    if (failed.length > 0) {
+      const warn = el('p', '읽지 못한 항목 ' + failed.length + '개: ' + failed.join(', ') + '. 아래 각 항목의 이유와 다음에 할 일을 확인하세요. 예시 값으로 대신 채우지 않았습니다.', 'pc-failures');
+      warn.setAttribute('role', 'status');
+      kids.push(warn);
+    }
     const ul = el('ul', undefined, 'pc-list');
     ul.append(
       pcRow('CPU 사용률', data.cpu, (row, p) => row.append(el('p', p.value + ' %'), el('p', '단위: % (잠깐 사이 CPU가 일한 비율)')),
@@ -715,21 +759,29 @@ function paintPc() {
     kids.push(...buildPcSecurity(data, pcUi.mode));
     kids.push(el('p', prev
       ? '비교 기준: 직전 성공 측정 ' + kst(prev.at) + ' (이 화면을 연 뒤 기록 ' + pcUi.history.length + '건, 최대 ' + PC_HISTORY_MAX + '건)'
-      : '비교할 이전 측정이 아직 없습니다. 「다시 재기」를 누르면 직전 값과의 차이를 보여 줍니다.', 'pc-trend-note'));
+      : '비교할 이전 측정이 아직 없습니다. 「다시 조회」를 누르면 직전 값과의 차이를 보여 줍니다.', 'pc-trend-note'));
   } else {
-    kids.push(el('p', '아직 재지 않았습니다', 'pc-idle'));
+    kids.push(el('p', '아직 조회하지 않았습니다', 'pc-idle'));
   }
 
-  const btn = el('button', '다시 재기');
+  // disabled 를 쓰지 않는다: 조회 중에도 키보드 초점이 버튼에 남고, 중복 조회는 막는다(aria-disabled).
+  const loading = pcUi.status === 'loading';
+  const btn = el('button', loading ? '조회 중…' : '다시 조회');
   btn.type = 'button';
-  btn.setAttribute('aria-label', 'CPU·메모리·디스크 다시 재기');
-  btn.disabled = pcUi.status === 'loading';
+  btn.className = 'pc-refresh';
+  btn.setAttribute('aria-label', loading ? '조회 중입니다. 잠시 기다리세요' : 'CPU·메모리·디스크·네트워크·방화벽·Windows 기록 다시 조회');
+  btn.setAttribute('aria-disabled', loading ? 'true' : 'false');
   btn.addEventListener('click', () => { measurePc(); });
   kids.push(btn);
+
+  // 버튼을 새로 만들어도 키보드 초점이 사라지지 않게 한다.
+  const hadFocus = typeof document !== 'undefined' && box.contains(document.activeElement);
   box.replaceChildren(...kids);
+  if (hadFocus) btn.focus({ preventScroll: true });
 }
 
 async function measurePc() {
+  if (pcUi.status === 'loading') return;
   pcUi.status = 'loading';
   pcUi.data = null;
   pcUi.error = null;
@@ -1300,6 +1352,12 @@ const LAYOUT_CSS = `
 .pc-usage .sdp-state p { margin: 2px 0; font-size: 0.9rem; }
 .pc-usage .sdp-state .sdp-line { font-weight: 700; }
 .pc-usage button { margin-top: 6px; }
+.pc-usage .pc-refresh { padding: 8px 14px; min-height: 40px; cursor: pointer; }
+.pc-usage .pc-refresh[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
+.pc-usage .pc-refresh:focus-visible { outline: 3px solid #f5b400; outline-offset: 2px; }
+.pc-usage .pc-loading { padding: 8px 12px; border-radius: var(--radius); background: var(--accent-soft); color: var(--accent); font-size: 0.9rem; }
+.pc-usage .pc-error, .pc-usage .pc-failures { padding: 8px 12px; border-radius: var(--radius); background: var(--deny-soft); color: var(--deny); font-size: 0.9rem; margin: 6px 0; }
+.pc-usage .pc-next { font-weight: 600; }
 
 /* 아래쪽 자세한 칸(기기·세션·알림·도움정보)은 글자를 조금 줄여 위의 핵심이 먼저 읽히게 */
 .status .status-section { font-size: 0.9rem; }

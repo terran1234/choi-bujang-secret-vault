@@ -241,8 +241,9 @@ async function readEvents(now, run) {
   }
 }
 
-// PowerShell을 세 번 띄우므로 30초 동안은 읽은 값을 다시 쓴다(값마다 잰 시각은 실제로 읽은 때 그대로다).
-const PS_CACHE_MS = 30000;
+// PowerShell을 세 번 띄우므로 연달아 누를 때만 3초 동안 읽은 값을 다시 쓴다(값마다 잰 시각은 실제로 읽은 때 그대로다).
+// 「다시 조회」가 오래된 값을 돌려주지 않도록 짧게 둔다.
+const PS_CACHE_MS = 3000;
 let psCache = null;
 
 async function readPcSecurity(now, run) {
