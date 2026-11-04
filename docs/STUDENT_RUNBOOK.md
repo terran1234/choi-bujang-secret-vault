@@ -292,7 +292,8 @@ CPU 사용률·메모리 사용량·디스크 남은 공간은 제공 코드에 
 | 증상 | 확인 순서 |
 |---|---|
 | 서버가 안 켜짐 | ① `node -v`로 22~24인지 확인 ② PowerShell이 `on-client` 폴더인지 확인(`package.json`이 보여야 함) ③ 터미널의 첫 오류 줄을 확인 |
-| 포트가 이미 사용 중 | 5189를 쓰는 다른 프로그램을 끄거나, 제공 실행 도구의 `-Port 5190`을 쓴다(미확인) |
+| 포트가 이미 사용 중(`Error: listen EADDRINUSE … 127.0.0.1:5189`) | 5189를 쓰는 프로그램을 끄거나(`Get-NetTCPConnection -LocalPort 5189 -State Listen`으로 확인), 환경변수로 다른 포트를 쓴다: `$env:ON_PORT='5199'; npm run demo`(직접 확인함). 제공 실행 도구의 `-Port 5190`은 미확인 |
+| `npm error Missing script: "demo"` | 저장소 최상위에서 실행한 것입니다. `on-client` 폴더 안에서 실행합니다(직접 재현해 확인함) |
 | 화면은 뜨는데 모든 칸이 「연결 없음」 | 기본 실행이면 정상입니다(`ENGINE_NOT_CONNECTED`). 예제 화면이 필요하면 `npm run demo` |
 | 학생 칸에 「학생 구현 대기」 또는 「student/extension.mjs를 불러오지 못했습니다」 | `npm run check`로 `student/extension.mjs` 문법을 확인 → 브라우저 새로고침 |
 | 학생 칸에 「학생 구현 ◯◯ 실행 중 오류가 발생했습니다」 | 그 함수에서 예외가 난 것입니다. 제공 화면은 계속 동작합니다. 함수 이름의 코드를 확인 |

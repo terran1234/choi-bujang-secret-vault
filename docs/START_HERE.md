@@ -15,6 +15,8 @@ npm run check
 npm run demo
 ```
 
+> **중요:** `npm run ...` 명령은 반드시 **`on-client` 폴더 안**에서 실행합니다. 저장소 맨 위 폴더에서 실행하면 동작하지 않습니다(아래 「막혔을 때」 첫 줄).
+
 1. `npm run check`는 아무 오류 없이 끝나야 합니다.
 2. `npm run demo`를 실행하면 터미널에 **`케셰브 예제: http://127.0.0.1:5189`** 한 줄이 나옵니다.
 3. 브라우저에서 **http://127.0.0.1:5189/** 를 엽니다. (이 PC 안에서만 열립니다.)
@@ -39,13 +41,14 @@ npm run demo
 
 | 증상 | 확인 순서 |
 |---|---|
-| 서버가 안 켜짐 | ① `node -v`가 22~24인지 ② PowerShell이 `on-client` 폴더인지(`package.json`이 보여야 함) ③ 터미널의 첫 오류 줄 |
-| 5189 포트가 이미 사용 중 | 다른 포트로 켭니다: `$env:ON_PORT='5199'; npm run demo` 후 http://127.0.0.1:5199/ |
+| `npm error Missing script: "demo"` (또는 `"check"`) | **폴더를 잘못 들어간 것**입니다. `cd on-client`로 들어가 `dir`을 실행했을 때 `package.json`이 보이는지 확인한 뒤 다시 실행합니다 |
+| `Error: listen EADDRINUSE: address already in use 127.0.0.1:5189` | **5189 포트를 이미 쓰는 프로그램**이 있습니다(이전에 켠 케셰브일 수 있습니다). ① 이전 서버를 켠 터미널에서 **Ctrl+C**를 누르거나 ② 다른 포트로 켭니다: `$env:ON_PORT='5199'; npm run demo` 후 http://127.0.0.1:5199/ 를 엽니다. 누가 쓰는지 보려면 `Get-NetTCPConnection -LocalPort 5189 -State Listen` |
+| 그 밖에 서버가 안 켜짐 | ① `node -v`가 22~24인지 ② 터미널의 **첫 오류 줄** |
 | 「내 PC 사용량」에 `조회 요청에 실패했습니다` | 서버가 켜져 있는지 확인 → 켜져 있으면 「다시 조회」 |
 | 어떤 항목이 `확인 불가` | 그 항목 아래의 이유와 「다음에 할 일」을 읽습니다. 관리자 권한이 필요한 항목은 권한을 올리지 않고 `확인 불가`로 둡니다 |
 
 ## 확인한 방법과 확인하지 못한 것
-- 확인함: 2026-11-05, Windows 11 Home, Node.js v24.20.0에서 **새 빈 폴더에 저장소를 받아** 위 순서대로 실행했습니다(`npm install` 없이 `npm run check` 통과, 화면 응답 200, CPU·메모리·디스크·방화벽·기록이 읽힘, `ON_PORT`로 포트 변경 동작).
+- 확인함: 2026-11-05, Windows 11 Home, Node.js v24.20.0에서 **새 빈 폴더에 저장소를 받아** 위 순서대로 실행했습니다(`npm install` 없이 `npm run check` 통과, 화면 응답 200, CPU·메모리·디스크·방화벽·기록이 읽힘, `ON_PORT`로 포트 변경 동작). 막히기 쉬운 두 곳(저장소 맨 위 폴더에서 실행, 5189 포트 사용 중)은 같은 폴더에서 실제로 재현해 위 오류 문구를 그대로 옮겼습니다. 주소를 `http://localhost:5189/`로 열어도 동작합니다.
 - 확인하지 못함: Windows 이외의 운영체제, Node.js 22·23, 제공 실행 도구 `tools\start-alekov.ps1`. 방화벽·Windows 기록은 Windows에서만 읽힙니다.
 
 더 자세한 설명(구성도, 단계별 확인 표, 오류 처리, 제공 코드와 내가 바꾼 부분)은 [STUDENT_RUNBOOK.md](STUDENT_RUNBOOK.md)에 있습니다.
