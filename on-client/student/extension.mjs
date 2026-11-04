@@ -568,6 +568,129 @@ function buildSummary({ devices, sessions, notifications, mode }) {
   return wrap;
 }
 
+// ---------- 내 PC 사용량: 이 PC에서 실제로 잰 값(예시 값이 아님) ----------
+
+// 서버의 /api/system 이 일반 권한으로 CPU·메모리·디스크를 한 번 읽어 준다(student/system-status.mjs).
+// 자동으로 반복해서 재지 않는다. 처음 한 번과 「다시 재기」를 누를 때만 잰다.
+const PC_HISTORY_MAX = 5;
+const GB = 1024 ** 3;
+const pcUi = { status: 'idle', data: null, error: null, history: [], started: false };
+let pcBox = null;
+
+function getPcBox() {
+  if (!pcBox) {
+    pcBox = el('section', undefined, 'pc-usage');
+    pcBox.setAttribute('aria-label', '내 PC 사용량');
+  }
+  return pcBox;
+}
+
+function kst(at) {
+  const ms = Date.parse(at);
+  if (Number.isNaN(ms)) return '확인 불가';
+  return new Date(ms).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false }) + ' (한국 시각)';
+}
+
+function gb(bytes) {
+  return (bytes / GB).toFixed(1) + ' GB';
+}
+
+function pcSnapshot(data) {
+  const snap = { at: data.checkedAt };
+  if (data.cpu && data.cpu.status === 'ok') snap.cpu = data.cpu.value;
+  if (data.memory && data.memory.status === 'ok') snap.mem = (data.memory.usedBytes / data.memory.totalBytes) * 100;
+  if (data.disk && data.disk.status === 'ok') snap.disk = data.disk.freeBytes / GB;
+  return snap;
+}
+
+// 직전 측정 값과의 차이. 둘 중 하나라도 읽지 못했으면 비교하지 않는다.
+function pcDelta(cur, prev, unit) {
+  if (typeof cur !== 'number' || typeof prev !== 'number') return null;
+  const d = Math.round((cur - prev) * 10) / 10;
+  return '직전 측정 대비 ' + (d > 0 ? '+' : '') + d + unit;
+}
+
+function pcRow(label, part, describe, trend) {
+  const row = el('li', undefined, 'pc-row');
+  row.append(el('p', label));
+  if (!part || part.status !== 'ok') {
+    const reason = part && part.reason;
+    row.append(el('p', '? 확인 불가', 'pc-unknown'));
+    row.append(el('p', '이유: ' + (reason ? reason.message + ' (' + reason.code + ')' : '값을 받지 못했습니다')));
+    if (part && part.measuredAt) row.append(el('p', '시도한 시각: ' + kst(part.measuredAt)));
+    return row;
+  }
+  describe(row, part);
+  if (trend) row.append(el('p', trend));
+  row.append(el('p', '잰 시각: ' + kst(part.measuredAt) + ' · 출처: ' + (part.source || '확인 불가')));
+  return row;
+}
+
+function paintPc() {
+  const box = getPcBox();
+  const kids = [el('h4', '내 PC 사용량 (이 PC에서 실제로 잰 값)')];
+  kids.push(el('p', '예시 값이 아니라 이 앱이 이 PC에서 일반 권한으로 직접 읽은 값입니다. 읽지 못한 항목은 확인 불가와 이유를 보여 주며 정상값으로 채우지 않습니다. 자동으로 반복해서 재지 않습니다.', 'pc-note'));
+
+  if (pcUi.status === 'loading') {
+    kids.push(el('p', '재는 중', 'pc-loading'));
+  } else if (pcUi.status === 'error') {
+    kids.push(el('p', '? 확인 불가: 측정 요청에 실패했습니다 — ' + (pcUi.error || '확인 불가'), 'pc-error'));
+    kids.push(el('p', '값을 받지 못했으므로 정상으로 보지 마세요.'));
+  } else if (pcUi.status === 'ok' && pcUi.data) {
+    const data = pcUi.data;
+    const cur = pcSnapshot(data);
+    const prev = pcUi.history.length >= 2 ? pcUi.history[pcUi.history.length - 2] : null;
+    const ul = el('ul', undefined, 'pc-list');
+    ul.append(
+      pcRow('CPU 사용률', data.cpu, (row, p) => row.append(el('p', p.value + ' %  (단위: %)')),
+        prev ? pcDelta(cur.cpu, prev.cpu, '%p') : null),
+      pcRow('메모리 사용량', data.memory, (row, p) => row.append(el('p',
+        gb(p.usedBytes) + ' / ' + gb(p.totalBytes) + '  (' + ((p.usedBytes / p.totalBytes) * 100).toFixed(1) + ' % 사용 · 단위: GB, 1GB=1024³바이트)')),
+      prev ? pcDelta(cur.mem, prev.mem, '%p') : null),
+      pcRow('디스크 남은 공간', data.disk, (row, p) => row.append(el('p',
+        gb(p.freeBytes) + ' 남음 / 전체 ' + gb(p.totalBytes) + '  (드라이브 ' + p.volume + ' · 단위: GB)')),
+      prev ? pcDelta(cur.disk, prev.disk, ' GB') : null),
+    );
+    kids.push(ul);
+    kids.push(el('p', prev
+      ? '비교 기준: 직전 성공 측정 ' + kst(prev.at) + ' (이 화면을 연 뒤 기록 ' + pcUi.history.length + '건, 최대 ' + PC_HISTORY_MAX + '건)'
+      : '비교할 이전 측정이 아직 없습니다. 「다시 재기」를 누르면 직전 값과의 차이를 보여 줍니다.', 'pc-trend-note'));
+  } else {
+    kids.push(el('p', '아직 재지 않았습니다', 'pc-idle'));
+  }
+
+  const btn = el('button', '다시 재기');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', 'CPU·메모리·디스크 다시 재기');
+  btn.disabled = pcUi.status === 'loading';
+  btn.addEventListener('click', () => { measurePc(); });
+  kids.push(btn);
+  box.replaceChildren(...kids);
+}
+
+async function measurePc() {
+  pcUi.status = 'loading';
+  pcUi.data = null;
+  pcUi.error = null;
+  paintPc();
+  try {
+    if (typeof fetch !== 'function') throw new Error('이 환경에서는 요청을 보낼 수 없습니다');
+    const res = await fetch('/api/system', { method: 'GET' });
+    const body = await res.json();
+    if (!body || body.ok !== true || !body.data || typeof body.data !== 'object') {
+      throw new Error((body && body.error && body.error.message) || '응답 형식을 확인할 수 없습니다');
+    }
+    pcUi.data = body.data;
+    pcUi.status = 'ok';
+    pcUi.history.push(pcSnapshot(body.data));
+    if (pcUi.history.length > PC_HISTORY_MAX) pcUi.history.shift();
+  } catch (error) {
+    pcUi.status = 'error';
+    pcUi.error = error && error.message ? error.message : '확인 불가';
+  }
+  paintPc();
+}
+
 function renderStatus({ devices, sessions, notifications, diagnostics, mode } = {}) {
   const root = el('section', undefined, 'status');
   root.setAttribute('aria-label', '기기·세션·알림·도움정보');
@@ -576,6 +699,15 @@ function renderStatus({ devices, sessions, notifications, diagnostics, mode } = 
   if (modeText) root.append(el('p', '자료 구분: ' + modeText, 'status-mode'));
 
   root.append(buildSummary({ devices, sessions, notifications, mode }));
+
+  // 내 PC 사용량: 처음 한 번만 자동으로 재고, 그 뒤에는 버튼을 눌렀을 때만 잰다.
+  if (!pcUi.started) {
+    pcUi.started = true;
+    measurePc();
+  } else {
+    paintPc();
+  }
+  root.append(getPcBox());
 
   root.append(
     statusBlock('등록된 기기', devices, '기기', (box, list) => {

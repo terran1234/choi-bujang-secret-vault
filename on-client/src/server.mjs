@@ -20,6 +20,7 @@ import {buildLocalLearnerSupportGuide,isLearnerSupportProblemKind,readLocalLearn
 import {nativeOwn,nativePublicError} from './connection/native-login.mjs';
 import {createNativeHostContext,captureNativeHostConfiguration,readNativeHostConfiguration,openNativeHostOperation,readNativeHostOperation,assertNativeHostOperation,createNativeOperationVault,closeNativeHostOperation} from './connection/native-context.mjs';
 
+import {readSystemStatus} from '../student/system-status.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const id=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(value);
 const record=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -680,6 +681,10 @@ export function createOnServer(serverOptions={}) {
         assertAlive();
         send(200,{ok:true,data:guide});return;
         }finally{closeNativeHostOperation(nativeOperation);}
+      }
+      if(req.method==='GET'&&url.pathname==='/api/system'){
+        // 학생 추가: 이 PC의 CPU·메모리·디스크를 일반 권한으로 한 번 읽는다(읽기 전용, 외부 요청 없음).
+        send(200,{ok:true,data:await readSystemStatus({now:clock})});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/diagnostics'){
         // 자동 호출이나 비밀 원문·전체 설정 출력 없이 로컬 연결 상태만 진단한다.
