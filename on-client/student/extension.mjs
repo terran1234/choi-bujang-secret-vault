@@ -289,6 +289,45 @@ function buildEventDetail(event) {
   return box;
 }
 
+// ---------- 기록 심각도 배지 ----------
+
+// 서버가 심각도를 주지 않으므로 종류와 상태값으로 계산하고, 판단 이유를 함께 보여 준다.
+// 주의: XDR 경보, 접속 거부, 세션 만료·철회, 기기 미충족 / 확인 불가: 상태 중 하나라도 unknown.
+const RECENT_COUNT = 5;
+
+function eventSeverity(e) {
+  const s = (e && e.state) || {};
+  const warn = [];
+  if (e && e.kind === 'xdr') warn.push('XDR 경보');
+  if (s.access === 'denied') warn.push('접속 거부');
+  if (s.session === 'expired' || s.session === 'revoked') warn.push('세션 ' + sessionText(s.session));
+  if (s.device === 'noncompliant') warn.push('기기 기준 미충족');
+  if (warn.length > 0) return { ...SUMMARY_LEVEL.warn, level: 'warn', reason: warn.join(', ') };
+
+  const unknown = [];
+  if (!s.access || s.access === 'unknown') unknown.push('접속');
+  if (!s.session || s.session === 'unknown') unknown.push('세션');
+  if (!s.device || s.device === 'unknown') unknown.push('기기');
+  if (unknown.length > 0) return { ...SUMMARY_LEVEL.unknown, level: 'unknown', reason: unknown.join('·') + ' 상태 확인 불가' };
+
+  return { ...SUMMARY_LEVEL.ok, level: 'ok', reason: '이상 징후 없음' };
+}
+
+// 가장 최근 기록 N건의 수준별 개수. 확인 불가는 정상에 넣지 않는다.
+function buildRecentSummary(sorted) {
+  const recent = sorted.slice(0, RECENT_COUNT);
+  const count = { warn: 0, unknown: 0, ok: 0 };
+  for (const e of recent) count[eventSeverity(e).level] += 1;
+  const level = count.warn > 0 ? 'warn' : count.unknown > 0 ? 'unknown' : 'ok';
+  const spec = SUMMARY_LEVEL[level];
+  const box = el('div', undefined, 'decision ' + spec.cls + ' events-recent');
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', '최근 기록 요약');
+  box.append(el('p', '최근 ' + recent.length + '건 요약'));
+  box.append(el('p', spec.mark + ' ' + spec.label + ' — 주의 ' + count.warn + ' · 확인 불가 ' + count.unknown + ' · 정상 ' + count.ok));
+  return box;
+}
+
 function renderEvents({ status, mode, data, error } = {}) {
   const root = el('section', undefined, 'events');
   root.setAttribute('aria-label', '접속 기록과 XDR 경보');
@@ -343,7 +382,8 @@ function renderEvents({ status, mode, data, error } = {}) {
             eventsUi.access, (v) => { eventsUi.access = v; repaint(); },
           ),
         );
-        children.push(filters);
+        children.push(buildRecentSummary(sorted));
+      children.push(filters);
 
         const shown = sorted.filter((e) =>
           (eventsUi.kind === 'all' || e.kind === eventsUi.kind) &&
@@ -361,7 +401,9 @@ function renderEvents({ status, mode, data, error } = {}) {
             li.setAttribute('data-student-event-id', String(e.id));
             li.append(el('p', '사건 ID: ' + e.id));
             li.append(el('p', '시각: ' + eventTime(e.at)));
-            li.append(el('p', '종류: ' + kindText(e.kind)));
+            const sev = eventSeverity(e);
+          li.append(el('p', '심각도: ' + sev.mark + ' ' + sev.label + ' (' + sev.reason + ')', 'events-severity events-severity-' + sev.level));
+          li.append(el('p', '종류: ' + kindText(e.kind)));
             li.append(el('p', '앱: ' + appText(e.appId)));
             li.append(el('p', '요약: ' + e.summary));
             const btn = el('button', e.id + ' 상세');
@@ -456,12 +498,84 @@ function safeDiagnostics(data) {
   };
 }
 
+// ---------- 요약 카드: 정상·주의·확인 불가를 기호와 글자로 한눈에 ----------
+
+// 기호와 글자를 함께 쓴다(색만으로 구분하지 않는다). 확인 불가는 정상이 아니다.
+const SUMMARY_LEVEL = {
+  ok: { mark: '●', label: '정상', cls: 'decision-allow' },
+  warn: { mark: '▲', label: '주의', cls: 'decision-challenge' },
+  unknown: { mark: '?', label: '확인 불가', cls: 'decision-unknown' },
+};
+
+// 여러 값 중 가장 나쁜 수준을 고른다: 주의 > 확인 불가 > 정상.
+function worstLevel(levels) {
+  if (levels.includes('warn')) return 'warn';
+  if (levels.includes('unknown')) return 'unknown';
+  return 'ok';
+}
+
+function summaryCard(title, level, detail) {
+  const spec = SUMMARY_LEVEL[level] || SUMMARY_LEVEL.unknown;
+  const card = el('div', undefined, 'decision ' + spec.cls + ' summary-card');
+  card.setAttribute('role', 'group');
+  card.setAttribute('aria-label', title + ': ' + spec.label);
+  card.append(el('p', title));
+  card.append(el('p', spec.mark + ' ' + spec.label));
+  card.append(el('p', detail));
+  return card;
+}
+
+// 목록 자료(기기·세션)를 한 줄 요약으로 바꾼다. 불러오지 못한 것은 정상으로 읽지 않는다.
+function listSummary(title, part, what, okStatus, warnStatuses, emptyText) {
+  const st = part && part.status;
+  if (st === 'loading') return summaryCard(title, 'unknown', what + ' 불러오는 중');
+  if (st === 'idle') return summaryCard(title, 'unknown', what + ' 아직 불러오지 않음');
+  if (st === 'error') return summaryCard(title, 'unknown', what + ' 불러오지 못함');
+  if (st !== 'ok' || !Array.isArray(part.data)) return summaryCard(title, 'unknown', what + ' 확인 불가');
+  if (part.data.length === 0) return summaryCard(title, 'unknown', emptyText);
+  const levels = part.data.map((item) => (
+    warnStatuses.includes(item.status) ? 'warn' : item.status === okStatus ? 'ok' : 'unknown'
+  ));
+  const level = worstLevel(levels);
+  const bad = levels.filter((l) => l !== 'ok').length;
+  const detail = level === 'ok'
+    ? '전체 ' + levels.length + '건 이상 없음'
+    : '전체 ' + levels.length + '건 중 ' + bad + '건 확인 필요';
+  return summaryCard(title, level, detail);
+}
+
+function buildSummary({ devices, sessions, notifications, mode }) {
+  const wrap = el('div', undefined, 'grid-2 summary-cards');
+  wrap.setAttribute('aria-label', '요약');
+  wrap.append(
+    listSummary('기기', devices, '기기', 'compliant', ['noncompliant'], '등록된 기기가 없어 확인할 수 없음'),
+    listSummary('세션', sessions, '세션', 'active', ['expired', 'revoked'], '현재 연결이 없어 확인할 수 없음'),
+  );
+
+  if (!Array.isArray(notifications)) {
+    wrap.append(summaryCard('알림', 'unknown', '알림 확인 불가'));
+  } else if (notifications.length === 0) {
+    wrap.append(summaryCard('알림', 'ok', '주의할 알림이 없습니다'));
+  } else {
+    wrap.append(summaryCard('알림', 'warn', '확인할 알림 ' + notifications.length + '건'));
+  }
+
+  // 예제·연결 없음 상태는 실제 연결 성공이 아니므로 정상으로 보이지 않게 한다.
+  if (mode === 'connected') wrap.append(summaryCard('자료 구분', 'ok', '실제 연결 자료'));
+  else if (mode === 'demo') wrap.append(summaryCard('자료 구분', 'warn', '예제 자료입니다. 실제 연결이 아닙니다'));
+  else if (mode === 'disconnected') wrap.append(summaryCard('자료 구분', 'unknown', '연결 없음'));
+  else wrap.append(summaryCard('자료 구분', 'unknown', '자료 구분을 확인할 수 없음'));
+  return wrap;
+}
+
 function renderStatus({ devices, sessions, notifications, diagnostics, mode } = {}) {
   const root = el('section', undefined, 'status');
   root.setAttribute('aria-label', '기기·세션·알림·도움정보');
   root.append(el('h3', '기기·세션·알림·도움정보'));
   const modeText = MODE_TEXT[mode];
   if (modeText) root.append(el('p', '자료 구분: ' + modeText, 'status-mode'));
+
+  root.append(buildSummary({ devices, sessions, notifications, mode }));
 
   root.append(
     statusBlock('등록된 기기', devices, '기기', (box, list) => {
