@@ -799,7 +799,10 @@ async function measurePc() {
     if (pcUi.history.length > PC_HISTORY_MAX) pcUi.history.shift();
   } catch (error) {
     pcUi.status = 'error';
-    pcUi.error = error && error.message ? error.message : '확인 불가';
+    // 서버가 꺼져 있으면 브라우저는 영어 원문(Failed to fetch)만 준다. 알아볼 수 있게 설명을 덧붙인다.
+    pcUi.error = error instanceof TypeError
+      ? '서버에 연결할 수 없습니다(브라우저 메시지: ' + error.message + ')'
+      : (error && error.message ? error.message : '확인 불가');
   }
   paintPc();
 }
