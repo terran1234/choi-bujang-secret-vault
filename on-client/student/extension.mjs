@@ -626,6 +626,64 @@ function pcRow(label, part, describe, trend) {
   return row;
 }
 
+const ADAPTER_TEXT = { Up: '연결됨(Up)', Disconnected: '연결 끊김(Disconnected)', Down: '꺼짐(Down)' };
+const FW_ENABLED_TEXT = { True: '켜짐(True)', False: '꺼짐(False)' };
+const FW_ACTION_TEXT = { Block: '차단(Block)', Allow: '허용(Allow)', NotConfigured: '기본값(NotConfigured)' };
+
+// 이 PC에서 읽은 네트워크 구성·방화벽·Windows 기록 건수, 그리고 SDP 연결 상태(따로 구분).
+function buildPcSecurity(data, mode) {
+  const out = [el('h4', '이 PC의 네트워크·방화벽·Windows 기록 (이 PC에서 읽은 값)')];
+  out.push(el('p', '아래 건수는 침해나 공격을 탐지한 결과가 아닙니다. 평소에도 경고·오류는 쌓이며, 건수가 많거나 적다는 것만으로 안전하거나 위험하다고 판단하지 마세요. 방화벽과 보안 설정은 읽기만 했고 바꾸지 않았습니다. 관리자 권한이 있어야 읽을 수 있는 항목은 확인 불가와 이유로 표시합니다.', 'pc-note'));
+
+  const ul = el('ul', undefined, 'pc-list pc-security');
+  ul.append(
+    pcRow('네트워크 구성', data.networkConfig, (row, p) => {
+      for (const a of p.adapters) {
+        row.append(el('p', a.name + ' — ' + (ADAPTER_TEXT[a.adapterStatus] || a.adapterStatus) +
+          ' · 기본 게이트웨이 ' + (a.hasGateway ? '있음' : '없음') + ' · DNS ' + a.dnsCount + '개' + (a.virtual ? ' · 가상 어댑터로 보임' : '')));
+      }
+      const net = data.network;
+      if (net && net.status === 'ok') {
+        row.append(el('p', '주소를 받은 어댑터 ' + net.usableAdapterCount + '개. 인터넷에 실제로 닿는지는 확인하지 않았습니다(외부로 요청을 보내지 않음).'));
+      }
+    }),
+    pcRow('방화벽 설정 (읽기만 함)', data.firewall, (row, p) => {
+      for (const f of p.profiles) {
+        const off = f.enabled === 'False';
+        row.append(el('p', f.name + ': ' + (off ? '주의: ' : '') + (FW_ENABLED_TEXT[f.enabled] || f.enabled) +
+          ' · 들어오는 기본 동작 ' + (FW_ACTION_TEXT[f.inbound] || f.inbound) + ' · 나가는 기본 동작 ' + (FW_ACTION_TEXT[f.outbound] || f.outbound)));
+      }
+      row.append(el('p', '이 앱은 방화벽 설정을 바꾸지 않았습니다.'));
+    }),
+    pcRow('Windows 기록의 경고·오류 건수 (최근 ' + (data.events && data.events.hours ? data.events.hours : 24) + '시간, 침해 탐지 결과 아님)', data.events, (row, p) => {
+      for (const log of p.logs) {
+        if (log.status !== 'ok') {
+          const r = log.reason;
+          row.append(el('p', log.log + ': ? 확인 불가 — ' + (r ? r.message + ' (' + r.code + ')' : '이유를 받지 못했습니다')));
+        } else {
+          const more = log.capped ? ' (조회 상한 ' + p.cap + '건에 닿아 실제로는 더 많을 수 있음)' : '';
+          row.append(el('p', log.log + ': 오류 ' + log.errors + '건 · 경고 ' + log.warnings + '건' + more));
+        }
+      }
+    }),
+  );
+  out.push(ul);
+
+  // SDP 연결은 PC 조회와 섞지 않고 따로 보여 준다. PC 조회가 성공해도 SDP가 연결된 것이 아니다.
+  const sdp = el('section', undefined, 'sdp-state');
+  sdp.setAttribute('aria-label', 'SDP 서버 연결 상태');
+  sdp.append(el('h4', 'SDP 서버 연결 (위 PC 조회와 별개)'));
+  let line;
+  if (mode === 'connected') line = '연결 설정됨(서버가 알려 준 모드: connected). 실제 SDP 연결이 성공했는지는 이 화면에서 확인하지 않았습니다.';
+  else if (mode === 'demo') line = '? SDP 미연결 — 예제 자료(demo)로 실행 중입니다.';
+  else if (mode === 'disconnected') line = '? SDP 미연결(disconnected) — 연결 없음.';
+  else line = '? 확인 불가 — SDP 연결 상태를 알 수 없습니다.';
+  sdp.append(el('p', line, 'sdp-line'));
+  sdp.append(el('p', '위 PC 조회가 성공한 것은 SDP 서버에 연결된 것과 다릅니다. 두 상태를 합쳐서 정상으로 읽지 마세요.'));
+  out.push(sdp);
+  return out;
+}
+
 function paintPc() {
   const box = getPcBox();
   const kids = [el('h4', '내 PC 사용량 (이 PC에서 실제로 잰 값)')];
@@ -652,6 +710,7 @@ function paintPc() {
       prev ? pcDelta(cur.disk, prev.disk, ' GB') : null),
     );
     kids.push(ul);
+    kids.push(...buildPcSecurity(data, pcUi.mode));
     kids.push(el('p', prev
       ? '비교 기준: 직전 성공 측정 ' + kst(prev.at) + ' (이 화면을 연 뒤 기록 ' + pcUi.history.length + '건, 최대 ' + PC_HISTORY_MAX + '건)'
       : '비교할 이전 측정이 아직 없습니다. 「다시 재기」를 누르면 직전 값과의 차이를 보여 줍니다.', 'pc-trend-note'));
@@ -701,6 +760,7 @@ function renderStatus({ devices, sessions, notifications, diagnostics, mode } = 
   root.append(buildSummary({ devices, sessions, notifications, mode }));
 
   // 내 PC 사용량: 처음 한 번만 자동으로 재고, 그 뒤에는 버튼을 눌렀을 때만 잰다.
+  pcUi.mode = mode;
   if (!pcUi.started) {
     pcUi.started = true;
     measurePc();
