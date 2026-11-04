@@ -700,13 +700,15 @@ function paintPc() {
     const prev = pcUi.history.length >= 2 ? pcUi.history[pcUi.history.length - 2] : null;
     const ul = el('ul', undefined, 'pc-list');
     ul.append(
-      pcRow('CPU 사용률', data.cpu, (row, p) => row.append(el('p', p.value + ' %  (단위: %)')),
+      pcRow('CPU 사용률', data.cpu, (row, p) => row.append(el('p', p.value + ' %'), el('p', '단위: % (잠깐 사이 CPU가 일한 비율)')),
         prev ? pcDelta(cur.cpu, prev.cpu, '%p') : null),
-      pcRow('메모리 사용량', data.memory, (row, p) => row.append(el('p',
-        gb(p.usedBytes) + ' / ' + gb(p.totalBytes) + '  (' + ((p.usedBytes / p.totalBytes) * 100).toFixed(1) + ' % 사용 · 단위: GB, 1GB=1024³바이트)')),
+      pcRow('메모리 사용량', data.memory, (row, p) => row.append(
+        el('p', gb(p.usedBytes) + ' / ' + gb(p.totalBytes)),
+        el('p', ((p.usedBytes / p.totalBytes) * 100).toFixed(1) + ' % 사용 · 단위: GB(1GB=1024³바이트)')),
       prev ? pcDelta(cur.mem, prev.mem, '%p') : null),
-      pcRow('디스크 남은 공간', data.disk, (row, p) => row.append(el('p',
-        gb(p.freeBytes) + ' 남음 / 전체 ' + gb(p.totalBytes) + '  (드라이브 ' + p.volume + ' · 단위: GB)')),
+      pcRow('디스크 남은 공간', data.disk, (row, p) => row.append(
+        el('p', gb(p.freeBytes) + ' 남음'),
+        el('p', '전체 ' + gb(p.totalBytes) + ' · 드라이브 ' + p.volume + ' · 단위: GB')),
       prev ? pcDelta(cur.disk, prev.disk, ' GB') : null),
     );
     kids.push(ul);
@@ -1262,7 +1264,65 @@ function renderVulnerabilities({ status, mode, data, error } = {}) {
   return root;
 }
 
+// ---------- 배치와 글자 크기: 핵심 기능이 화면 맨 위에 먼저 보이게 ----------
+
+// 제공 화면 파일(public/)은 고치지 않고, 학생 코드가 스타일 시트를 하나 붙여서 정리한다.
+// 스타일을 붙이지 못하는 환경이면 제공 화면 그대로 보이며 기능에는 영향이 없다.
+const LAYOUT_CSS = `
+/* 보호 현황: 내 기능 칸(요약·PC 사용량·네트워크)을 제목 바로 아래로 올린다 */
+#view-protection { display: flex; flex-direction: column; }
+#view-protection > h1 { order: -2; }
+#view-protection > section[aria-labelledby="student-status-title"] { order: -1; margin-bottom: 16px; }
+
+/* 요약 카드 4개: 넓은 화면에서는 한 줄, 좁으면 2줄. 상태(정상·주의·확인 불가)를 가장 크게 */
+.summary-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+@media (max-width: 900px) { .summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.summary-card { margin: 0; padding: 10px 12px; }
+.summary-card p { margin: 0; }
+.summary-card p:nth-child(1) { font-size: 0.85rem; }
+.summary-card p:nth-child(2) { font-size: 1.35rem; font-weight: 700; line-height: 1.35; }
+.summary-card p:nth-child(3) { font-size: 0.8rem; }
+
+/* 내 PC 사용량: CPU·메모리·디스크를 카드 세 장으로, 값은 크게 / 잰 시각·출처는 작게 */
+.pc-usage h4 { font-size: 1rem; margin: 14px 0 6px; }
+.pc-usage .pc-note, .pc-usage .pc-trend-note { font-size: 0.8rem; color: var(--muted); margin: 4px 0 8px; }
+.pc-usage .pc-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.pc-usage .pc-list:not(.pc-security) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .pc-usage .pc-list:not(.pc-security) { grid-template-columns: 1fr; } }
+.pc-usage .pc-row { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); overflow-wrap: anywhere; }
+.pc-usage .pc-row p { margin: 2px 0; font-size: 0.8rem; color: var(--muted); }
+.pc-usage .pc-row p:first-child { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.pc-usage .pc-list:not(.pc-security) .pc-row p:nth-child(2) { font-size: 1.3rem; font-weight: 700; color: var(--text); line-height: 1.35; }
+.pc-usage .pc-security .pc-row p { font-size: 0.9rem; color: var(--text); }
+.pc-usage .pc-security .pc-row p:first-child { font-size: 0.95rem; }
+.pc-usage .sdp-state { border-left: 4px solid var(--challenge); background: var(--challenge-soft); padding: 8px 12px; border-radius: var(--radius); }
+.pc-usage .sdp-state h4 { margin: 0 0 4px; }
+.pc-usage .sdp-state p { margin: 2px 0; font-size: 0.9rem; }
+.pc-usage .sdp-state .sdp-line { font-weight: 700; }
+.pc-usage button { margin-top: 6px; }
+
+/* 아래쪽 자세한 칸(기기·세션·알림·도움정보)은 글자를 조금 줄여 위의 핵심이 먼저 읽히게 */
+.status .status-section { font-size: 0.9rem; }
+.status .status-section h4 { font-size: 0.95rem; }
+`;
+
+let layoutInstalled = false;
+
+function installLayoutStyle() {
+  if (layoutInstalled) return;
+  layoutInstalled = true;
+  try {
+    if (typeof CSSStyleSheet === 'undefined' || typeof document === 'undefined' || !document.adoptedStyleSheets) return;
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(LAYOUT_CSS);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  } catch {
+    // 스타일을 붙이지 못해도 제공 화면과 표시 함수는 그대로 동작한다.
+  }
+}
+
 export function createStudentView() {
+  installLayoutStyle();
   return {
     renderIdentity,
     renderDecision,
