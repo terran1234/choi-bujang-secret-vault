@@ -6,6 +6,8 @@
 
 13단계부터는 같은 저장소 안의 `on-client` 폴더에 제공 시작 틀(0.2.11)을 넣고, 내 PC에서만 켜는 보안 Agent 앱 **케셰브**를 만듭니다. 아래 1~12단계 자료실(Vercel)과는 별개의 앱입니다.
 
+**케셰브를 처음 켜 보는 분은 [docs/START_HERE.md](docs/START_HERE.md) 한 장부터 읽으세요.** 켜는 순서, 화면에서 볼 것, 막혔을 때가 한 장에 있습니다.
+
 - **목적**: 직원 본인의 로그인 사용자·기기·세션, 업무 앱 접근 판정, 접속 기록·XDR 경보, 기기·세션·알림 상태, AI 연결 점검과 근거 있는 사건 설명, 조치 상태, 설치 패키지의 알려진 취약점 조회 결과를 한 화면에서 구분해 보여 줍니다.
 - **내가 만든 것**: `on-client/student/extension.mjs`의 표시 함수 8개(`renderIdentity`, `renderDecision`, `renderEvents`, `renderStatus`, `renderAiConnection`, `renderExplanation`, `renderAction`, `renderVulnerabilities`). 제공 화면·서버(`on-client/public`, `on-client/src`)는 고치지 않았습니다.
 - **지원 환경과 버전**: Windows 11 Pro 10.0.26100, Node.js v24.21.0(수업 기준 24.19.0), npm 11.19.0. 다른 운영체제와 브라우저는 확인하지 않았습니다.
